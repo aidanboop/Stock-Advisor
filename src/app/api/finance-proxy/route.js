@@ -35,7 +35,7 @@ export async function GET(request) {
   
   switch (endpoint) {
     case 'chart':
-      yahooFinanceUrl = `https://query1.finance.yahoo.com/v8/chart/${symbol}?region=${region}&interval=${interval}&range=${range}`;
+      yahooFinanceUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?region=${region}&interval=${interval}&range=${range}`;
       break;
     case 'quoteSummary':
       yahooFinanceUrl = `https://query1.finance.yahoo.com/v8/finance/quoteSummary/${symbol}?modules=${modules}&region=${region}`;
@@ -54,16 +54,76 @@ export async function GET(request) {
   }
   
   try {
-    // Fetch data from Yahoo Finance
+    // Fetch data from Yahoo Finance with enhanced error handling
     const response = await fetch(yahooFinanceUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'application/json'
-      }
+      },
+      timeout: 10000 // 10-second timeout
     });
     
+    // Check if response is OK
+    if (!response.ok) {
+      // Try to extract error details
+      const errorText = await response.text();
+      console.error(`Yahoo Finance API error: ${response.status} - ${errorText}`);
+      
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Failed to fetch data from Yahoo Finance. Status: ${response.status}`,
+          details: errorText
+        },
+        { status: response.status }
+      );
+    }
+    
+    // Check content type
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const errorText = await response.text();
+      console.error(`Unexpected content type: ${contentType}. Response: ${errorText}`);
+      
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Received non-JSON response from Yahoo Finance API',
+          details: errorText
+        },
+        { status: 500 }
+      );
+    }
+    
     // Get the data from the response
-    const data = await response.json();
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      console.error('Error parsing JSON response:', parseError);
+      const errorText = await response.text();
+      
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Failed to parse JSON response',
+          details: errorText
+        },
+        { status: 500 }
+      );
+    }
+    
+    // Additional validation of response data
+    if (!data || (endpoint !== 'insights' && !data.chart && !data.quoteSummary)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Received empty or invalid data from Yahoo Finance API',
+          details: data
+        },
+        { status: 500 }
+      );
+    }
     
     // Return the data
     return NextResponse.json({
@@ -74,12 +134,16 @@ export async function GET(request) {
   } catch (error) {
     console.error(`Error proxying request to Yahoo Finance for ${symbol}:`, error);
     
-    // Return error response
+    // Return detailed error response
     return NextResponse.json(
       {
         success: false,
         message: 'Failed to fetch data from Yahoo Finance',
-        error: error.message
+        error: {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        }
       },
       { status: 500 }
     );
