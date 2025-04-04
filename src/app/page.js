@@ -62,7 +62,7 @@ export default async function Home() {
                           {stock.metadata?.price ? `$${stock.metadata.price.toFixed(2)}` : 'N/A'}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {stock.metadata?.exchange || 'US Exchange'}
+                          {stock.metadata?.exchange || 'US Exchange'} • Last updated: {new Date(stockData.lastUpdated).toLocaleString('en-US', {timeZone: 'America/New_York'})} EST
                         </div>
                       </div>
                     </div>
