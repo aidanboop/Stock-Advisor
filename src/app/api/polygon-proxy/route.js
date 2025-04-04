@@ -31,6 +31,16 @@ function addApiKey(url) {
 }
 
 /**
+ * Get absolute URL for the current request
+ * @param {Request} request - The incoming request
+ * @returns {string} Base URL (protocol + hostname)
+ */
+function getBaseUrl(request) {
+  const url = new URL(request.url);
+  return `${url.protocol}//${url.host}`;
+}
+
+/**
  * Fetch data from Polygon.io API
  * @param {string} endpoint - API endpoint
  * @param {Object} params - Additional query parameters
