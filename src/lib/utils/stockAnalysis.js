@@ -1,74 +1,125 @@
 /**
  * Stock analysis utilities for evaluating buy recommendations
+ * Updated to work with Polygon.io data
  */
 
 /**
- * Analyze technical indicators from stock insights data
- * @param {Object} insightsData - Stock insights data from Yahoo Finance API
+ * Analyze technical indicators from Polygon.io data
+ * @param {Object} aggregatesData - Stock aggregates data from Polygon.io
+ * @param {Object} technicalIndicators - Technical indicators data from Polygon.io
  * @returns {Object} Technical analysis results with scores and recommendations
  */
-export const analyzeTechnicalIndicators = (insightsData) => {
+export const analyzeTechnicalIndicators = (aggregatesData, technicalIndicators = null) => {
   try {
-    if (!insightsData?.finance?.result?.instrumentInfo?.technicalEvents) {
+    if (!aggregatesData || !aggregatesData.results) {
       return { score: 0, recommendation: 'NEUTRAL', reasons: ['Insufficient technical data'] };
     }
 
-    const technicalEvents = insightsData.finance.result.instrumentInfo.technicalEvents;
-    const shortTerm = technicalEvents.shortTermOutlook || {};
-    const intermediateTerm = technicalEvents.intermediateTermOutlook || {};
-    const longTerm = technicalEvents.longTermOutlook || {};
+    const results = aggregatesData.results;
     
-    // Calculate weighted score (short term has highest weight)
-    const shortTermScore = shortTerm.score || 0;
-    const intermediateTermScore = intermediateTerm.score || 0;
-    const longTermScore = longTerm.score || 0;
+    // Need at least a few data points for analysis
+    if (!results || results.length < 5) {
+      return { score: 0, recommendation: 'NEUTRAL', reasons: ['Insufficient price history'] };
+    }
     
-    // Weight factors (short term is most important for daily recommendations)
-    const weightedScore = (
-      (shortTermScore * 0.5) + 
-      (intermediateTermScore * 0.3) + 
-      (longTermScore * 0.2)
-    );
+    // Calculate short, intermediate, and long-term trends
+    const shortTermPrices = results.slice(-5);
+    const intermediateTermPrices = results.slice(-14);
+    const longTermPrices = results.slice(-30);
     
-    // Normalize to 0-100 scale
-    const normalizedScore = Math.min(100, Math.max(0, weightedScore * 10));
+    // Calculate trends (simple version: compare first and last price)
+    const shortTermTrend = calculateTrend(shortTermPrices);
+    const intermediateTermTrend = calculateTrend(intermediateTermPrices);
+    const longTermTrend = calculateTrend(longTermPrices);
+    
+    // Calculate moving averages
+    const latestClose = results[results.length - 1].c;
+    const sma5 = calculateSMA(results, 5);
+    const sma10 = calculateSMA(results, 10);
+    const sma20 = calculateSMA(results, 20);
+    
+    // SMA cross signals
+    const sma5Above20 = sma5 > sma20;
+    const sma5Above10 = sma5 > sma10;
+    const sma10Above20 = sma10 > sma20;
+    const priceAboveSMA5 = latestClose > sma5;
+    const priceAboveSMA20 = latestClose > sma20;
+    
+    // Calculate a score (0-100)
+    let score = 50; // Neutral starting point
+    
+    // Short-term trend has highest weight
+    if (shortTermTrend.direction === 'up') score += 10;
+    else if (shortTermTrend.direction === 'down') score -= 10;
+    
+    // Intermediate-term trend
+    if (intermediateTermTrend.direction === 'up') score += 7;
+    else if (intermediateTermTrend.direction === 'down') score -= 7;
+    
+    // Long-term trend
+    if (longTermTrend.direction === 'up') score += 5;
+    else if (longTermTrend.direction === 'down') score -= 5;
+    
+    // SMA signals
+    if (sma5Above20) score += 5;
+    else score -= 5;
+    
+    if (sma5Above10) score += 3;
+    else score -= 3;
+    
+    if (priceAboveSMA5) score += 5;
+    else score -= 5;
+    
+    if (priceAboveSMA20) score += 5;
+    else score -= 5;
+    
+    // Clamp score to 0-100
+    score = Math.min(100, Math.max(0, score));
     
     // Determine recommendation based on score
     let recommendation = 'NEUTRAL';
-    if (normalizedScore >= 70) recommendation = 'STRONG_BUY';
-    else if (normalizedScore >= 60) recommendation = 'BUY';
-    else if (normalizedScore <= 30) recommendation = 'SELL';
-    else if (normalizedScore <= 40) recommendation = 'WEAK_HOLD';
+    if (score >= 70) recommendation = 'STRONG_BUY';
+    else if (score >= 60) recommendation = 'BUY';
+    else if (score <= 30) recommendation = 'SELL';
+    else if (score <= 40) recommendation = 'WEAK_HOLD';
     else recommendation = 'HOLD';
     
     // Collect reasons for recommendation
     const reasons = [];
-    if (shortTerm.direction === 'up') reasons.push('Positive short-term outlook');
-    if (shortTerm.direction === 'down') reasons.push('Negative short-term outlook');
-    if (intermediateTerm.direction === 'up') reasons.push('Positive intermediate-term outlook');
-    if (intermediateTerm.direction === 'down') reasons.push('Negative intermediate-term outlook');
-    if (longTerm.direction === 'up') reasons.push('Positive long-term outlook');
-    if (longTerm.direction === 'down') reasons.push('Negative long-term outlook');
+    if (shortTermTrend.direction === 'up') reasons.push('Positive short-term price trend');
+    if (shortTermTrend.direction === 'down') reasons.push('Negative short-term price trend');
+    
+    if (intermediateTermTrend.direction === 'up') reasons.push('Positive intermediate-term price trend');
+    if (intermediateTermTrend.direction === 'down') reasons.push('Negative intermediate-term price trend');
+    
+    if (longTermTrend.direction === 'up') reasons.push('Positive long-term price trend');
+    if (longTermTrend.direction === 'down') reasons.push('Negative long-term price trend');
+    
+    if (sma5Above20) reasons.push('Short-term moving average above long-term (bullish)');
+    else reasons.push('Short-term moving average below long-term (bearish)');
+    
+    if (priceAboveSMA5 && priceAboveSMA20) reasons.push('Price above key moving averages');
+    if (!priceAboveSMA5 && !priceAboveSMA20) reasons.push('Price below key moving averages');
     
     return {
-      score: normalizedScore,
+      score,
       recommendation,
       reasons,
       details: {
         shortTerm: {
-          direction: shortTerm.direction,
-          score: shortTerm.score,
-          description: shortTerm.scoreDescription
+          direction: shortTermTrend.direction,
+          score: normalizeScore(shortTermTrend.percentChange),
+          description: `${shortTermTrend.percentChange > 0 ? '+' : ''}${shortTermTrend.percentChange.toFixed(2)}% over 5 days`
         },
         intermediateTerm: {
-          direction: intermediateTerm.direction,
-          score: intermediateTerm.score,
-          description: intermediateTerm.scoreDescription
+          direction: intermediateTermTrend.direction,
+          score: normalizeScore(intermediateTermTrend.percentChange),
+          description: `${intermediateTermTrend.percentChange > 0 ? '+' : ''}${intermediateTermTrend.percentChange.toFixed(2)}% over 14 days`
         },
         longTerm: {
-          direction: longTerm.direction,
-          score: longTerm.score,
-          description: longTerm.scoreDescription
+          direction: longTermTrend.direction,
+          score: normalizeScore(longTermTrend.percentChange),
+          description: `${longTermTrend.percentChange > 0 ? '+' : ''}${longTermTrend.percentChange.toFixed(2)}% over 30 days`
         }
       }
     };
@@ -79,17 +130,49 @@ export const analyzeTechnicalIndicators = (insightsData) => {
 };
 
 /**
- * Analyze insider trading activity
- * @param {Object} holdersData - Stock holders data from Yahoo Finance API
+ * Calculate trend direction and percent change
+ * @param {Array} prices - Array of price data
+ * @returns {Object} Trend information
+ */
+function calculateTrend(prices) {
+  if (!prices || prices.length < 2) {
+    return { direction: 'neutral', percentChange: 0 };
+  }
+  
+  const firstPrice = prices[0].c;
+  const lastPrice = prices[prices.length - 1].c;
+  const percentChange = ((lastPrice - firstPrice) / firstPrice) * 100;
+  
+  let direction = 'neutral';
+  if (percentChange > 1) direction = 'up';
+  else if (percentChange < -1) direction = 'down';
+  
+  return { direction, percentChange };
+}
+
+/**
+ * Normalize trend score to 0-100 scale
+ * @param {Number} percentChange - Percent change
+ * @returns {Number} Normalized score
+ */
+function normalizeScore(percentChange) {
+  // Scale: -10% to +10% mapped to 0-100
+  const score = 50 + (percentChange * 5);
+  return Math.min(100, Math.max(0, score));
+}
+
+/**
+ * Analyze insider trading activity from Polygon.io data
+ * @param {Object} insiderTransactionsData - Insider transactions data from Polygon.io
  * @returns {Object} Insider trading analysis with score and insights
  */
-export const analyzeInsiderTrading = (holdersData) => {
+export const analyzeInsiderTrading = (insiderTransactionsData) => {
   try {
-    if (!holdersData?.quoteSummary?.result?.[0]?.insiderHolders?.holders) {
+    if (!insiderTransactionsData || !insiderTransactionsData.results) {
       return { score: 50, sentiment: 'NEUTRAL', reasons: ['No recent insider trading data'] };
     }
 
-    const holders = holdersData.quoteSummary.result[0].insiderHolders.holders;
+    const transactions = insiderTransactionsData.results;
     
     // Calculate insider trading score based on recent transactions
     let buyCount = 0;
@@ -99,34 +182,42 @@ export const analyzeInsiderTrading = (holdersData) => {
     let sellShares = 0;
     const recentTransactions = [];
     
-    // Process each insider's transactions
-    holders.forEach(holder => {
-      if (!holder.transactionDescription || !holder.latestTransDate) return;
+    // Process each transaction (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    transactions.forEach(transaction => {
+      // Filter for recent transactions
+      const transactionDate = new Date(transaction.filing_date);
+      if (transactionDate < thirtyDaysAgo) return;
       
-      const transaction = {
-        name: holder.name,
-        relation: holder.relation,
-        date: holder.latestTransDate.fmt,
-        description: holder.transactionDescription,
-        shares: holder.positionDirect?.raw || 0
+      const transactionData = {
+        name: transaction.insider_name || 'Unknown',
+        relation: transaction.insider_title || 'Insider',
+        date: transaction.filing_date,
+        description: transaction.transaction_type || '',
+        shares: transaction.share_count || 0
       };
       
-      // Add to transaction count based on description
-      const desc = holder.transactionDescription.toLowerCase();
-      if (desc.includes('buy') || desc.includes('purchase') || desc.includes('acquire')) {
+      // Categorize transaction
+      if (transaction.transaction_type === 'P' || // Purchase
+          transaction.transaction_type === 'A') { // Acquisition
         buyCount++;
-        buyShares += holder.positionDirect?.raw || 0;
-        transaction.type = 'BUY';
-      } else if (desc.includes('sell') || desc.includes('dispose')) {
+        buyShares += transaction.share_count || 0;
+        transactionData.type = 'BUY';
+      } 
+      else if (transaction.transaction_type === 'S' || // Sale
+               transaction.transaction_type === 'D') { // Disposition
         sellCount++;
-        sellShares += holder.positionDirect?.raw || 0;
-        transaction.type = 'SELL';
-      } else {
-        transaction.type = 'OTHER';
+        sellShares += transaction.share_count || 0;
+        transactionData.type = 'SELL';
+      } 
+      else {
+        transactionData.type = 'OTHER';
       }
       
-      totalShares += holder.positionDirect?.raw || 0;
-      recentTransactions.push(transaction);
+      totalShares += transaction.share_count || 0;
+      recentTransactions.push(transactionData);
     });
     
     // Calculate insider sentiment score (0-100)
@@ -187,37 +278,39 @@ export const analyzeInsiderTrading = (holdersData) => {
 };
 
 /**
- * Analyze price trends from chart data
- * @param {Object} chartData - Stock chart data from Yahoo Finance API
+ * Analyze price trends from Polygon.io aggregates data
+ * @param {Object} aggregatesData - Stock aggregates data from Polygon.io
  * @returns {Object} Price trend analysis with momentum indicators
  */
-export const analyzePriceTrends = (chartData) => {
+export const analyzePriceTrends = (aggregatesData) => {
   try {
-    if (!chartData?.chart?.result?.[0]?.indicators?.quote?.[0]) {
+    if (!aggregatesData || !aggregatesData.results) {
       return { score: 50, trend: 'NEUTRAL', reasons: ['Insufficient price data'] };
     }
 
-    const result = chartData.chart.result[0];
-    const quote = result.indicators.quote[0];
-    const timestamps = result.timestamp || [];
-    const closes = quote.close || [];
-    const volumes = quote.volume || [];
+    const results = aggregatesData.results;
     
     // Ensure we have enough data points
-    if (closes.length < 10 || timestamps.length < 10) {
+    if (results.length < 10) {
       return { score: 50, trend: 'NEUTRAL', reasons: ['Insufficient price history'] };
     }
     
+    // Extract price data
+    const closes = results.map(result => result.c);
+    const volumes = results.map(result => result.v);
+    
     // Calculate simple moving averages
-    const sma5 = calculateSMA(closes, 5);
-    const sma10 = calculateSMA(closes, 10);
-    const sma20 = calculateSMA(closes, 20);
+    const sma5 = calculateSMA(results, 5);
+    const sma10 = calculateSMA(results, 10);
+    const sma20 = calculateSMA(results, 20);
     
     // Calculate price momentum (% change)
     const latestClose = closes[closes.length - 1];
     const prevClose = closes[closes.length - 2];
-    const weekAgoClose = closes[Math.max(0, closes.length - 6)];
-    const monthAgoClose = closes[Math.max(0, closes.length - 21)];
+    const weekAgoIndex = Math.max(0, closes.length - 6);
+    const monthAgoIndex = Math.max(0, closes.length - 21);
+    const weekAgoClose = closes[weekAgoIndex];
+    const monthAgoClose = closes[monthAgoIndex];
     
     const dailyChange = ((latestClose - prevClose) / prevClose) * 100;
     const weeklyChange = ((latestClose - weekAgoClose) / weekAgoClose) * 100;
@@ -240,7 +333,7 @@ export const analyzePriceTrends = (chartData) => {
     momentumScore += monthlyChange * 0.5;
     
     // SMA crossovers
-    if (sma5[sma5.length - 1] > sma20[sma20.length - 1]) {
+    if (sma5 > sma20) {
       momentumScore += 5; // Bullish when short-term SMA above long-term
     } else {
       momentumScore -= 5; // Bearish when short-term SMA below long-term
@@ -271,7 +364,7 @@ export const analyzePriceTrends = (chartData) => {
     if (weeklyChange > 5) reasons.push(`Strong weekly gain of ${weeklyChange.toFixed(2)}%`);
     else if (weeklyChange < -5) reasons.push(`Significant weekly loss of ${weeklyChange.toFixed(2)}%`);
     
-    if (sma5[sma5.length - 1] > sma20[sma20.length - 1]) {
+    if (sma5 > sma20) {
       reasons.push('Short-term moving average above long-term (bullish)');
     } else {
       reasons.push('Short-term moving average below long-term (bearish)');
@@ -290,8 +383,8 @@ export const analyzePriceTrends = (chartData) => {
         monthlyChange,
         latestClose,
         volumeRatio,
-        sma5: sma5[sma5.length - 1],
-        sma20: sma20[sma20.length - 1]
+        sma5,
+        sma20
       }
     };
   } catch (error) {
@@ -304,53 +397,36 @@ export const analyzePriceTrends = (chartData) => {
  * Calculate Simple Moving Average
  * @param {Array} data - Array of price data
  * @param {Number} period - Period for SMA calculation
- * @returns {Array} Array of SMA values
+ * @returns {Number} SMA value
  */
 const calculateSMA = (data, period) => {
-  const result = [];
-  
-  // Not enough data for the period
-  if (data.length < period) {
-    return Array(data.length).fill(null);
+  if (!data || data.length < period) {
+    return null;
   }
   
-  // Calculate initial sum
-  let sum = 0;
-  for (let i = 0; i < period; i++) {
-    sum += data[i] || 0;
-  }
+  // Get the closing prices for the last 'period' days
+  const closingPrices = data.slice(-period).map(item => item.c);
   
-  // Calculate SMA for each point
-  for (let i = 0; i < data.length; i++) {
-    if (i >= period) {
-      // Remove oldest and add newest for rolling sum
-      sum = sum - (data[i - period] || 0) + (data[i] || 0);
-      result.push(sum / period);
-    } else if (i === period - 1) {
-      // First complete period
-      result.push(sum / period);
-    } else {
-      // Not enough data yet
-      result.push(null);
-    }
-  }
+  // Calculate the sum
+  const sum = closingPrices.reduce((total, price) => total + price, 0);
   
-  return result;
+  // Return the average
+  return sum / period;
 };
 
 /**
- * Generate comprehensive buy recommendation
- * @param {Object} stockData - Comprehensive stock data
+ * Generate comprehensive buy recommendation using Polygon.io data
+ * @param {Object} stockData - Comprehensive stock data from Polygon.io
  * @returns {Object} Buy recommendation with score and detailed analysis
  */
 export const generateBuyRecommendation = (stockData) => {
   try {
-    const { symbol, chartData, holdersData, insightsData } = stockData;
+    const { symbol, aggregatesData, tickerDetailsData, insiderTransactionsData } = stockData;
     
     // Run individual analyses
-    const technicalAnalysis = analyzeTechnicalIndicators(insightsData);
-    const insiderAnalysis = analyzeInsiderTrading(holdersData);
-    const priceAnalysis = analyzePriceTrends(chartData);
+    const technicalAnalysis = analyzeTechnicalIndicators(aggregatesData);
+    const insiderAnalysis = analyzeInsiderTrading(insiderTransactionsData);
+    const priceAnalysis = analyzePriceTrends(aggregatesData);
     
     // Calculate weighted buy score (0-100)
     // Technical indicators: 40%, Insider trading: 40%, Price trends: 20%
@@ -369,8 +445,15 @@ export const generateBuyRecommendation = (stockData) => {
     else recommendation = 'HOLD';
     
     // Get stock metadata
-    const meta = chartData?.chart?.result?.[0]?.meta || {};
-    const stockName = meta.shortName || meta.longName || symbol;
+    const stockName = tickerDetailsData?.results?.name || symbol;
+    
+    // Get last price
+    const lastPrice = aggregatesData?.results ? 
+      aggregatesData.results[aggregatesData.results.length - 1].c : 
+      null;
+    
+    // Get exchange
+    const exchange = tickerDetailsData?.results?.primary_exchange || 'Unknown';
     
     // Compile key reasons for recommendation
     const allReasons = [
@@ -401,9 +484,9 @@ export const generateBuyRecommendation = (stockData) => {
         price: priceAnalysis
       },
       metadata: {
-        price: meta.regularMarketPrice,
-        currency: meta.currency,
-        exchange: meta.exchangeName
+        price: lastPrice,
+        currency: 'USD',
+        exchange: exchange
       }
     };
   } catch (error) {
