@@ -3,15 +3,50 @@ import { getTopRecommendations, getMarketOverview } from '../lib/utils/stockData
 export const dynamic = 'force-dynamic';
 export const revalidate = 3600; // Revalidate every hour
 
+// Define interfaces for our data structures
+interface StockAnalysis {
+  technical?: {
+    score?: number;
+  };
+  insider?: {
+    score?: number;
+  };
+  price?: {
+    score?: number;
+    dailyChange?: number;
+  };
+}
+
+interface StockMetadata {
+  price?: number;
+  exchange?: string;
+}
+
+interface StockData {
+  symbol: string;
+  name: string;
+  recommendation: string;
+  score: number;
+  keyReasons: string[];
+  analysis?: StockAnalysis;
+  metadata?: StockMetadata;
+}
+
+interface MarketOverview {
+  indices?: StockData[];
+  sectors?: StockData[];
+  lastUpdated: string;
+}
+
 export default async function Home() {
   // Get top stock recommendations (focus on tech stocks)
-  const techRecommendations = await getTopRecommendations(5, true);
+  const techRecommendations: StockData[] = await getTopRecommendations(5, true);
   
   // Get broader market recommendations
-  const allRecommendations = await getTopRecommendations(5, false);
+  const allRecommendations: StockData[] = await getTopRecommendations(5, false);
   
   // Get market overview data
-  const marketOverview = await getMarketOverview();
+  const marketOverview: MarketOverview = await getMarketOverview();
   
   return (
     <main className="min-h-screen bg-gray-50">
@@ -35,7 +70,7 @@ export default async function Home() {
             
             <div className="space-y-4">
               {techRecommendations.length > 0 ? (
-                techRecommendations.map((stock: any) => (
+                techRecommendations.map((stock: StockData) => (
                   <div key={stock.symbol} className="border-b pb-4 last:border-b-0 last:pb-0">
                     <div className="flex justify-between items-start">
                       <div>
@@ -133,7 +168,7 @@ export default async function Home() {
             
             <div className="space-y-4">
               {allRecommendations.length > 0 ? (
-                allRecommendations.map((stock: any) => (
+                allRecommendations.map((stock: StockData) => (
                   <div key={stock.symbol} className="border-b pb-4 last:border-b-0 last:pb-0">
                     <div className="flex justify-between items-start">
                       <div>
@@ -235,7 +270,7 @@ export default async function Home() {
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-3">Major Indices</h3>
               <div className="space-y-3">
-                {marketOverview.indices?.map((index: any) => (
+                {marketOverview.indices?.map((index: StockData) => (
                   <div key={index.symbol} className="flex justify-between items-center">
                     <div>
                       <div className="font-medium">{index.name}</div>
@@ -267,7 +302,7 @@ export default async function Home() {
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-3">Sectors</h3>
               <div className="space-y-3">
-                {marketOverview.sectors?.map((sector: any) => (
+                {marketOverview.sectors?.map((sector: StockData) => (
                   <div key={sector.symbol} className="flex justify-between items-center">
                     <div>
                       <div className="font-medium">{sector.name}</div>
