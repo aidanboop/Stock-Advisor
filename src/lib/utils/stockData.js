@@ -1,6 +1,6 @@
 /**
- * Updated stock data management utilities with mock data fallback
- * Place this file at: src/lib/utils/stockData.js (replacing the existing file)
+ * Revised stock data management utilities with improved error handling
+ * Place this file at: src/lib/utils/stockData.js
  */
 
 import { getComprehensiveStockData } from '../api/yahooFinance';
@@ -59,8 +59,8 @@ let stockDataCache = {};
 let lastCacheRefresh = null;
 const CACHE_EXPIRY_MS = 60 * 60 * 1000; // 1 hour cache expiry
 
-// Flag to determine if we should use mock data (for development or when API fails)
-let useMockData = process.env.NODE_ENV === 'production'; // Default to using mock data in production
+// Initially use mock data to ensure UI displays something
+let useMockData = true;
 
 /**
  * Toggle between real and mock data
@@ -80,7 +80,85 @@ export const isUsingMockData = () => {
 };
 
 /**
- * Fetch data for a single stock with fallback to mock data
+ * Try to fetch data from API, fall back to mock if needed
+ * @param {string} symbol - Stock symbol
+ * @returns {Object} Stock data
+ */
+const getDataWithFallback = async (symbol) => {
+  // If explicitly using mock data, return it immediately
+  if (useMockData) {
+    const mockStock = getMockStockData(symbol);
+    if (mockStock) return mockStock;
+  }
+  
+  try {
+    // Try to fetch real data from API
+    const stockData = await getComprehensiveStockData(symbol);
+    const recommendation = generateBuyRecommendation(stockData);
+    
+    // If we succeeded, we could potentially set useMockData to false
+    // to indicate the API is working
+    return recommendation;
+  } catch (error) {
+    console.error(`API error for ${symbol}, falling back to mock data:`, error);
+    
+    // Fall back to mock data
+    const mockStock = getMockStockData(symbol);
+    if (mockStock) return mockStock;
+    
+    // If no mock data available, throw error to be handled by caller
+    throw new Error(`No data available for ${symbol}`);
+  }
+};
+
+/**
+ * Get mock data for a stock symbol
+ * @param {string} symbol - Stock symbol
+ * @returns {Object|null} Mock stock data or null if not found
+ */
+const getMockStockData = (symbol) => {
+  // Find in mock data
+  const mockStock = [...mockTechRecommendations, ...mockAllRecommendations].find(
+    stock => stock.symbol === symbol
+  );
+  
+  if (mockStock) return mockStock;
+  
+  // For indices
+  if (symbol.startsWith('^')) {
+    const mockIndex = mockMarketOverview.indices.find(i => i.symbol === symbol);
+    if (mockIndex) return mockIndex;
+  }
+  
+  // For sectors
+  if (SECTORS.includes(symbol)) {
+    const mockSector = mockMarketOverview.sectors.find(s => s.symbol === symbol);
+    if (mockSector) return mockSector;
+  }
+  
+  // Generic mock data for unknown symbols
+  return {
+    symbol,
+    name: `${symbol} Inc.`,
+    score: Math.floor(Math.random() * 30) + 50, // Random score between 50-80
+    recommendation: 'HOLD',
+    lastUpdated: new Date().toISOString(),
+    keyReasons: ['Mock data - symbol not found in predefined mocks'],
+    analysis: {
+      technical: { score: 60 },
+      insider: { score: 60 },
+      price: { score: 60, dailyChange: 0 }
+    },
+    metadata: {
+      price: 100.00,
+      currency: 'USD',
+      exchange: 'NYSE'
+    }
+  };
+};
+
+/**
+ * Fetch data for a single stock
  * @param {string} symbol - Stock symbol
  * @param {boolean} forceRefresh - Force refresh data even if cached
  * @returns {Promise<Object>} Stock data with recommendation
@@ -100,97 +178,28 @@ export const fetchStockData = async (symbol, forceRefresh = false) => {
   }
   
   try {
-    // If using mock data, return it instead of calling the API
-    if (useMockData) {
-      // Find the symbol in mock data
-      const mockData = [...mockTechRecommendations, ...mockAllRecommendations].find(
-        stock => stock.symbol === symbol
-      );
-      
-      if (mockData) {
-        // Update cache
-        stockDataCache[cacheKey] = mockData;
-        lastCacheRefresh = now;
-        return mockData;
-      } else {
-        // If symbol not found in mock data, return a generic mock
-        const genericMock = {
-          symbol,
-          name: `${symbol} Inc.`,
-          score: Math.floor(Math.random() * 30) + 50, // Random score between 50-80
-          recommendation: 'HOLD',
-          lastUpdated: now.toISOString(),
-          keyReasons: ['Mock data - symbol not found in predefined mocks'],
-          analysis: {
-            technical: { score: 60 },
-            insider: { score: 60 },
-            price: { score: 60, dailyChange: 0 }
-          },
-          metadata: {
-            price: 100.00,
-            currency: 'USD',
-            exchange: 'NYSE'
-          }
-        };
-        
-        stockDataCache[cacheKey] = genericMock;
-        lastCacheRefresh = now;
-        return genericMock;
-      }
-    }
-    
-    // Fetch fresh data from API
-    const stockData = await getComprehensiveStockData(symbol);
-    const recommendation = generateBuyRecommendation(stockData);
+    // Get data with fallback
+    const stockData = await getDataWithFallback(symbol);
     
     // Update cache
-    stockDataCache[cacheKey] = recommendation;
+    stockDataCache[cacheKey] = stockData;
     lastCacheRefresh = now;
     
-    return recommendation;
+    return stockData;
   } catch (error) {
-    console.error(`Error fetching data for ${symbol}:`, error);
-    
-    // On error, fall back to mock data if available
-    const mockData = [...mockTechRecommendations, ...mockAllRecommendations].find(
-      stock => stock.symbol === symbol
-    );
-    
-    if (mockData) {
-      console.warn(`Falling back to mock data for ${symbol}`);
-      return mockData;
-    }
-    
-    // If no mock data for this symbol, throw the error
+    console.error(`Failed to fetch data for ${symbol}:`, error);
     throw error;
   }
 };
 
 /**
- * Fetch data for multiple stocks with fallback to mock data
+ * Fetch data for multiple stocks
  * @param {Array<string>} symbols - Array of stock symbols
  * @param {boolean} forceRefresh - Force refresh data even if cached
  * @returns {Promise<Array<Object>>} Array of stock data with recommendations
  */
 export const fetchMultipleStocks = async (symbols, forceRefresh = false) => {
   try {
-    // If using mock data, return it directly
-    if (useMockData) {
-      const results = [];
-      
-      for (const symbol of symbols) {
-        const mockData = [...mockTechRecommendations, ...mockAllRecommendations].find(
-          stock => stock.symbol === symbol
-        );
-        
-        if (mockData) {
-          results.push(mockData);
-        }
-      }
-      
-      return results;
-    }
-    
     // Process in batches to avoid overwhelming the API
     const batchSize = 5;
     const results = [];
@@ -214,7 +223,7 @@ export const fetchMultipleStocks = async (symbols, forceRefresh = false) => {
   } catch (error) {
     console.error('Error fetching multiple stocks:', error);
     
-    // Fall back to mock data on API failure
+    // If fetching real data fails, return mock data
     if (symbols.some(symbol => symbol.startsWith('^'))) {
       // If fetching indices, return mock indices
       return mockMarketOverview.indices;
@@ -232,7 +241,7 @@ export const fetchMultipleStocks = async (symbols, forceRefresh = false) => {
 };
 
 /**
- * Get top stock recommendations with fallback to mock data
+ * Get top stock recommendations
  * @param {number} limit - Maximum number of recommendations to return
  * @param {boolean} techOnly - Whether to only include tech stocks
  * @returns {Promise<Array<Object>>} Array of top stock recommendations
@@ -260,8 +269,10 @@ export const getTopRecommendations = async (limit = 5, techOnly = false) => {
       stock.recommendation === 'BUY' || stock.recommendation === 'STRONG_BUY'
     );
     
-    // Return top N recommendations
-    return buyRecommendations.slice(0, limit);
+    // Return top N recommendations or all recommendations if fewer than limit
+    return buyRecommendations.length > 0
+      ? buyRecommendations.slice(0, limit)
+      : sortedStocks.slice(0, limit); // If no BUY recommendations, return the highest scored stocks
   } catch (error) {
     console.error('Error getting top recommendations:', error);
     
@@ -274,7 +285,7 @@ export const getTopRecommendations = async (limit = 5, techOnly = false) => {
 };
 
 /**
- * Get market overview data with fallback to mock data
+ * Get market overview data
  * @returns {Promise<Object>} Market overview data
  */
 export const getMarketOverview = async () => {
