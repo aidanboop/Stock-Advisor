@@ -16,20 +16,35 @@ interface RefreshController {
 export default function DataRefreshInitializer() {
   const [status, setStatus] = useState('initializing');
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
+  const [controller, setController] = useState<RefreshController | null>(null);
 
   useEffect(() => {
-    // Start hourly refresh when component mounts
-    const refreshController = startHourlyRefresh(() => {
-      setLastRefresh(new Date().toISOString());
-      setStatus('active');
-    }) as RefreshController;
+    try {
+      // Start hourly refresh when component mounts
+      const refreshController = startHourlyRefresh(() => {
+        setLastRefresh(new Date().toISOString());
+        setStatus('active');
+      }) as RefreshController;
 
-    // Set initial status
-    setStatus('active');
+      // Store the controller for cleanup
+      setController(refreshController);
+      
+      // Set initial status
+      setStatus('active');
+    } catch (error) {
+      console.error('Failed to initialize data refresh:', error);
+      setStatus('error');
+    }
 
     // Clean up when component unmounts
     return () => {
-      refreshController.stop();
+      if (controller) {
+        try {
+          controller.stop();
+        } catch (error) {
+          console.error('Error stopping refresh controller:', error);
+        }
+      }
     };
   }, []);
 
