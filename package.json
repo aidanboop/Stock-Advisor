@@ -54,7 +54,10 @@
     "input-otp": "^1.1.0",
     "react-resizable-panels": "^0.0.55",
     "next-themes": "^0.2.1",
-    "react-hook-form": "^7.46.1"
+    "react-hook-form": "^7.46.1",
+    "tailwindcss": "^3.3.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8"
   },
   "devDependencies": {
     "@types/node": "^20",
@@ -62,9 +65,6 @@
     "@types/react-dom": "^18",
     "eslint": "^8",
     "eslint-config-next": "14.1.0",
-    "postcss": "^8",
-    "autoprefixer": "^10.4.16",
-    "tailwindcss": "^3.3.0",
     "typescript": "^5"
   }
 }
