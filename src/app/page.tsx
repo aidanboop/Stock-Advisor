@@ -1,7 +1,7 @@
 import { getTopRecommendations, getMarketOverview } from '../lib/utils/stockData';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 3600; // Revalidate every hour
+export const revalidate = 30;
 
 // Define interfaces for our data structures
 interface StockAnalysis {
