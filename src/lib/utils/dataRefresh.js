@@ -1,5 +1,5 @@
 /**
- * Scheduled data refresh functionality
+ * Real-time data refresh functionality
  */
 
 import { fetchMultipleStocks, TECH_STOCKS, SECTORS, STOCK_INDICES } from './stockData';
@@ -8,19 +8,39 @@ import { fetchMultipleStocks, TECH_STOCKS, SECTORS, STOCK_INDICES } from './stoc
 let refreshInterval = null;
 
 /**
- * Start hourly data refresh
+ * Get current time in EST formatted string
+ * @returns {string} Current EST time string
+ */
+const getEstTimeString = () => {
+  const now = new Date();
+  return now.toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: true
+  });
+};
+
+/**
+ * Start real-time data refresh
  * @param {Function} onRefresh - Callback function to execute after each refresh
+ * @param {number} intervalSeconds - Seconds between refreshes (default: 30 seconds)
  * @returns {Object} Control object with stop function
  */
-export const startHourlyRefresh = (onRefresh) => {
+export const startRealTimeRefresh = (onRefresh, intervalSeconds = 30) => {
   // Clear any existing interval
   if (refreshInterval) {
     clearInterval(refreshInterval);
   }
   
+  // Convert interval to milliseconds
+  const intervalMs = intervalSeconds * 1000;
+  
   // Function to refresh all stock data
   const refreshAllData = async () => {
-    console.log(`[${new Date().toISOString()}] Starting scheduled data refresh...`);
+    const estTime = getEstTimeString();
+    console.log(`[${estTime} EST] Starting real-time data refresh...`);
     
     try {
       // Combine all symbols to refresh
@@ -29,22 +49,22 @@ export const startHourlyRefresh = (onRefresh) => {
       // Force refresh of all data
       await fetchMultipleStocks(allSymbols, true);
       
-      console.log(`[${new Date().toISOString()}] Data refresh completed successfully`);
+      console.log(`[${getEstTimeString()} EST] Data refresh completed successfully`);
       
       // Execute callback if provided
       if (typeof onRefresh === 'function') {
         onRefresh();
       }
     } catch (error) {
-      console.error(`[${new Date().toISOString()}] Error during scheduled refresh:`, error);
+      console.error(`[${getEstTimeString()} EST] Error during real-time refresh:`, error);
     }
   };
   
-  // Run initial refresh
-  refreshAllData();
+  // Run initial refresh (don't need to wait since we'll return immediately)
+  setTimeout(refreshAllData, 100);
   
-  // Set up hourly interval (3600000 ms = 1 hour)
-  refreshInterval = setInterval(refreshAllData, 3600000);
+  // Set up refresh interval based on provided seconds
+  refreshInterval = setInterval(refreshAllData, intervalMs);
   
   // Return control object
   return {
@@ -52,7 +72,7 @@ export const startHourlyRefresh = (onRefresh) => {
       if (refreshInterval) {
         clearInterval(refreshInterval);
         refreshInterval = null;
-        console.log(`[${new Date().toISOString()}] Scheduled data refresh stopped`);
+        console.log(`[${getEstTimeString()} EST] Real-time data refresh stopped`);
       }
     },
     forceRefresh: refreshAllData
@@ -60,18 +80,29 @@ export const startHourlyRefresh = (onRefresh) => {
 };
 
 /**
- * Stop hourly data refresh
+ * Start hourly data refresh (legacy support)
+ * @param {Function} onRefresh - Callback function to execute after each refresh
+ * @returns {Object} Control object with stop function
  */
-export const stopHourlyRefresh = () => {
+export const startHourlyRefresh = (onRefresh) => {
+  // For backward compatibility, call startRealTimeRefresh with 30 seconds
+  console.log('Using real-time refresh instead of hourly refresh');
+  return startRealTimeRefresh(onRefresh, 30);
+};
+
+/**
+ * Stop all data refresh
+ */
+export const stopRefresh = () => {
   if (refreshInterval) {
     clearInterval(refreshInterval);
     refreshInterval = null;
-    console.log(`[${new Date().toISOString()}] Scheduled data refresh stopped`);
+    console.log(`[${getEstTimeString()} EST] Real-time data refresh stopped`);
   }
 };
 
 /**
- * Check if hourly refresh is active
+ * Check if refresh is active
  * @returns {boolean} True if refresh is active
  */
 export const isRefreshActive = () => {
