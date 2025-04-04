@@ -1,5 +1,6 @@
 /**
  * Stock data management utilities using Polygon.io API
+ * Enhanced with better fallback mechanisms
  */
 
 import { getComprehensiveStockData } from '../api/polygonClient';
@@ -56,7 +57,7 @@ export const SECTORS = [
 // Cache for stock data to minimize API calls
 let stockDataCache = {};
 let lastCacheRefresh = null;
-const CACHE_EXPIRY_MS = 30 * 1000;
+const CACHE_EXPIRY_MS = 30 * 1000; // 30 seconds to match refresh interval
 
 // Control whether to use mock data
 let useMockData = false;
@@ -93,10 +94,24 @@ const getDataWithFallback = async (symbol) => {
   try {
     // Try to fetch real data from API
     const stockData = await getComprehensiveStockData(symbol);
+    
+    // Check if we got any actual data back
+    const hasData = stockData && (
+      stockData.aggregatesData || 
+      stockData.tickerDetailsData || 
+      stockData.insiderTransactionsData
+    );
+    
+    // If we didn't get any data, fall back to mock
+    if (!hasData) {
+      console.warn(`No data returned for ${symbol}, falling back to mock data`);
+      const mockStock = getMockStockData(symbol);
+      if (mockStock) return mockStock;
+    }
+    
+    // Generate recommendation from whatever data we have
     const recommendation = generateBuyRecommendation(stockData);
     
-    // If we succeeded, we could potentially set useMockData to false
-    // to indicate the API is working
     return recommendation;
   } catch (error) {
     console.error(`API error for ${symbol}, falling back to mock data:`, error);
@@ -105,9 +120,95 @@ const getDataWithFallback = async (symbol) => {
     const mockStock = getMockStockData(symbol);
     if (mockStock) return mockStock;
     
-    // If no mock data available, throw error to be handled by caller
-    throw new Error(`No data available for ${symbol}`);
+    // If no mock data available, return minimal data
+    return createMinimalStockData(symbol);
   }
+};
+
+/**
+ * Create minimal stock data when all else fails
+ * @param {string} symbol - Stock symbol
+ * @returns {Object} Minimal stock data
+ */
+const createMinimalStockData = (symbol) => {
+  return {
+    symbol,
+    name: getReadableName(symbol),
+    score: 50,
+    recommendation: 'HOLD',
+    lastUpdated: new Date().toISOString(),
+    keyReasons: ['Insufficient data available for a strong recommendation'],
+    analysis: {
+      technical: { score: 50, reasons: ['Insufficient price data'] },
+      insider: { score: 50, reasons: ['No insider trading data available'] },
+      price: { score: 50, reasons: ['Insufficient price history'] }
+    },
+    metadata: {
+      price: null,
+      currency: 'USD',
+      exchange: 'Unknown'
+    }
+  };
+};
+
+/**
+ * Get a readable name from a stock symbol
+ * @param {string} symbol - Stock symbol
+ * @returns {string} Readable name
+ */
+const getReadableName = (symbol) => {
+  // ETFs and indices
+  const etfNames = {
+    'SPY': 'S&P 500 ETF',
+    'QQQ': 'NASDAQ-100 ETF',
+    'DIA': 'Dow Jones Industrial Average ETF',
+    'IWM': 'Russell 2000 ETF',
+    'VIX': 'CBOE Volatility Index',
+    'XLK': 'Technology Sector ETF',
+    'XLF': 'Financial Sector ETF',
+    'XLV': 'Healthcare Sector ETF',
+    'XLE': 'Energy Sector ETF',
+    'XLY': 'Consumer Discretionary Sector ETF',
+    'XLP': 'Consumer Staples Sector ETF',
+    'XLI': 'Industrial Sector ETF',
+    'XLB': 'Materials Sector ETF',
+    'XLU': 'Utilities Sector ETF',
+    'XLRE': 'Real Estate Sector ETF'
+  };
+  
+  // Common stocks
+  const stockNames = {
+    'AAPL': 'Apple Inc.',
+    'MSFT': 'Microsoft Corporation',
+    'GOOGL': 'Alphabet Inc.',
+    'AMZN': 'Amazon.com Inc.',
+    'META': 'Meta Platforms Inc.',
+    'NVDA': 'NVIDIA Corporation',
+    'TSLA': 'Tesla Inc.',
+    'INTC': 'Intel Corporation',
+    'AMD': 'Advanced Micro Devices Inc.',
+    'CRM': 'Salesforce Inc.',
+    'ADBE': 'Adobe Inc.',
+    'ORCL': 'Oracle Corporation',
+    'CSCO': 'Cisco Systems Inc.',
+    'IBM': 'International Business Machines',
+    'PYPL': 'PayPal Holdings Inc.',
+    'NFLX': 'Netflix Inc.',
+    'QCOM': 'Qualcomm Inc.',
+    'TXN': 'Texas Instruments Inc.',
+    'MU': 'Micron Technology Inc.',
+    'AMAT': 'Applied Materials Inc.'
+  };
+  
+  // Check ETF/index first, then stock
+  const name = etfNames[symbol] || stockNames[symbol];
+  
+  // If we don't have a name, generate one
+  if (!name) {
+    return `${symbol} Inc.`;
+  }
+  
+  return name;
 };
 
 /**
@@ -138,7 +239,7 @@ const getMockStockData = (symbol) => {
   // Generic mock data for unknown symbols
   return {
     symbol,
-    name: `${symbol} Inc.`,
+    name: getReadableName(symbol),
     score: Math.floor(Math.random() * 30) + 50, // Random score between 50-80
     recommendation: 'HOLD',
     lastUpdated: new Date().toISOString(),
@@ -187,7 +288,15 @@ export const fetchStockData = async (symbol, forceRefresh = false) => {
     return stockData;
   } catch (error) {
     console.error(`Failed to fetch data for ${symbol}:`, error);
-    throw error;
+    
+    // Try to return cached data even if expired
+    if (stockDataCache[cacheKey]) {
+      console.warn(`Returning expired cached data for ${symbol}`);
+      return stockDataCache[cacheKey];
+    }
+    
+    // Last resort: return mock data
+    return getMockStockData(symbol);
   }
 };
 
@@ -200,26 +309,28 @@ export const fetchStockData = async (symbol, forceRefresh = false) => {
 export const fetchMultipleStocks = async (symbols, forceRefresh = false) => {
   try {
     // Process in batches to avoid overwhelming the API
-    const batchSize = 5;
+    const batchSize = 3; // Reduced batch size to avoid rate limits
     const results = [];
     
     for (let i = 0; i < symbols.length; i += batchSize) {
       const batch = symbols.slice(i, i + batchSize);
-      const batchPromises = batch.map(symbol => fetchStockData(symbol, forceRefresh));
-      const batchResults = await Promise.allSettled(batchPromises);
       
-      // Filter out rejected promises and add fulfilled ones to results
-      batchResults.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          results.push(result.value);
-        } else {
-          console.error(`Failed to fetch data for ${batch[index]}:`, result.reason);
-        }
-      });
+      // Use Promise.all instead of allSettled to catch individual errors
+      const batchPromises = batch.map(symbol => 
+        fetchStockData(symbol, forceRefresh)
+          .catch(error => {
+            console.error(`Error fetching data for ${symbol}:`, error);
+            // Return mock data on error
+            return getMockStockData(symbol);
+          })
+      );
       
-      // Add a small delay between batches to avoid rate limiting
+      const batchResults = await Promise.all(batchPromises);
+      results.push(...batchResults);
+      
+      // Add a larger delay between batches to avoid rate limiting
       if (i + batchSize < symbols.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
     
@@ -227,7 +338,7 @@ export const fetchMultipleStocks = async (symbols, forceRefresh = false) => {
   } catch (error) {
     console.error('Error fetching multiple stocks:', error);
     
-    // If fetching real data fails, return mock data
+    // Handle different fallbacks based on what we're fetching
     if (symbols.some(symbol => STOCK_INDICES.includes(symbol))) {
       // If fetching indices, return mock indices
       return mockMarketOverview.indices;
@@ -260,7 +371,7 @@ export const getTopRecommendations = async (limit = 5, techOnly = false) => {
     }
     
     // Determine which stocks to analyze
-    const symbolsToAnalyze = techOnly ? TECH_STOCKS : [...TECH_STOCKS, ...SECTORS];
+    const symbolsToAnalyze = techOnly ? TECH_STOCKS.slice(0, 10) : [...TECH_STOCKS.slice(0, 5), ...SECTORS.slice(0, 5)];
     
     // Fetch data for all stocks
     const stockData = await fetchMultipleStocks(symbolsToAnalyze);
@@ -302,11 +413,11 @@ export const getMarketOverview = async () => {
       };
     }
     
-    // Fetch data for major indices
-    const indicesData = await fetchMultipleStocks(STOCK_INDICES);
+    // Fetch data for major indices (use a subset to avoid rate limits)
+    const indicesData = await fetchMultipleStocks(STOCK_INDICES.slice(0, 3));
     
-    // Fetch data for major sectors
-    const sectorsData = await fetchMultipleStocks(SECTORS);
+    // Fetch data for major sectors (use a subset to avoid rate limits)
+    const sectorsData = await fetchMultipleStocks(SECTORS.slice(0, 5));
     
     return {
       indices: indicesData,
