@@ -1,9 +1,34 @@
 /**
  * Polygon.io API client for Stock Advisor application
+ * Enhanced with better API key handling
  */
 
 // Store API key in environment variable for security
-const POLYGON_API_KEY = process.env.POLYGON_API_KEY || 'YOUR_POLYGON_API_KEY'; // Replace with your actual API key
+const POLYGON_API_KEY = process.env.POLYGON_API_KEY;
+
+// Check if API key is available and valid
+const validateApiKey = () => {
+  if (!POLYGON_API_KEY) {
+    console.error('POLYGON_API_KEY is not defined in environment variables');
+    return false;
+  }
+  
+  if (POLYGON_API_KEY === 'your_polygon_api_key_here') {
+    console.error('POLYGON_API_KEY is set to the example value. Please set a valid API key.');
+    return false;
+  }
+  
+  // Basic format validation (Polygon keys are typically alphanumeric)
+  if (!/^[a-zA-Z0-9_]+$/.test(POLYGON_API_KEY)) {
+    console.error('POLYGON_API_KEY appears to be in an invalid format');
+    return false;
+  }
+  
+  return true;
+};
+
+// Validate API key on module load
+const isApiKeyValid = validateApiKey();
 
 /**
  * Get stock aggregates (candlestick) data
@@ -16,6 +41,11 @@ const POLYGON_API_KEY = process.env.POLYGON_API_KEY || 'YOUR_POLYGON_API_KEY'; /
  */
 export const getStockAggregates = async (symbol, multiplier = 1, timespan = 'day', from, to) => {
   try {
+    // Check API key validity
+    if (!isApiKeyValid) {
+      throw new Error('Invalid Polygon.io API key. Please check your environment variables.');
+    }
+    
     // Normalize parameters
     const normalizedSymbol = symbol.toUpperCase();
     
@@ -56,6 +86,11 @@ export const getStockAggregates = async (symbol, multiplier = 1, timespan = 'day
  */
 export const getDailyOpenClose = async (symbol, date) => {
   try {
+    // Check API key validity
+    if (!isApiKeyValid) {
+      throw new Error('Invalid Polygon.io API key. Please check your environment variables.');
+    }
+    
     // Normalize parameters
     const normalizedSymbol = symbol.toUpperCase();
     
@@ -91,6 +126,11 @@ export const getDailyOpenClose = async (symbol, date) => {
  */
 export const getPreviousClose = async (symbol) => {
   try {
+    // Check API key validity
+    if (!isApiKeyValid) {
+      throw new Error('Invalid Polygon.io API key. Please check your environment variables.');
+    }
+    
     // Normalize parameters
     const normalizedSymbol = symbol.toUpperCase();
     
@@ -119,6 +159,11 @@ export const getPreviousClose = async (symbol) => {
  */
 export const getTickerDetails = async (symbol) => {
   try {
+    // Check API key validity
+    if (!isApiKeyValid) {
+      throw new Error('Invalid Polygon.io API key. Please check your environment variables.');
+    }
+    
     // Normalize parameters
     const normalizedSymbol = symbol.toUpperCase();
     
@@ -147,6 +192,11 @@ export const getTickerDetails = async (symbol) => {
  */
 export const getInsiderTransactions = async (symbol) => {
   try {
+    // Check API key validity
+    if (!isApiKeyValid) {
+      throw new Error('Invalid Polygon.io API key. Please check your environment variables.');
+    }
+    
     // Normalize parameters
     const normalizedSymbol = symbol.toUpperCase();
     
@@ -174,6 +224,11 @@ export const getInsiderTransactions = async (symbol) => {
  */
 export const getMarketStatus = async () => {
   try {
+    // Check API key validity
+    if (!isApiKeyValid) {
+      throw new Error('Invalid Polygon.io API key. Please check your environment variables.');
+    }
+    
     // Construct URL
     const url = `/api/polygon-proxy/market-status`;
     
@@ -201,6 +256,11 @@ export const getMarketStatus = async () => {
  */
 export const getTechnicalIndicators = async (symbol, indicator, params = {}) => {
   try {
+    // Check API key validity
+    if (!isApiKeyValid) {
+      throw new Error('Invalid Polygon.io API key. Please check your environment variables.');
+    }
+    
     // Normalize parameters
     const normalizedSymbol = symbol.toUpperCase();
     
@@ -232,6 +292,11 @@ export const getTechnicalIndicators = async (symbol, indicator, params = {}) => 
  */
 export const getComprehensiveStockData = async (symbol) => {
   try {
+    // Check API key validity
+    if (!isApiKeyValid) {
+      throw new Error('Invalid Polygon.io API key. Please check your environment variables.');
+    }
+    
     // Since we might hit rate limits or have other issues, use Promise.allSettled
     // to get as much data as possible, even if some requests fail
     const [aggregatesResult, tickerDetailsResult, insiderTransactionsResult] = await Promise.allSettled([
