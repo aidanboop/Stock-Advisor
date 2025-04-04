@@ -60,7 +60,7 @@ let lastCacheRefresh = null;
 const CACHE_EXPIRY_MS = 30 * 1000;
 
 // Initially use mock data to ensure UI displays something
-let useMockData = true;
+let useMockData = false;
 
 /**
  * Toggle between real and mock data
