@@ -379,9 +379,9 @@ export default async function StockDetail({ params }) {
             </div>
             
             <div className="text-sm text-gray-500">
-              <p>This recommendation is based on technical indicators, insider trading patterns, and price trend analysis. Data is updated hourly to provide the most current insights.</p>
+              <p>This recommendation is based on technical indicators, insider trading patterns, and price trend analysis. Data is updated every 30 seconds to provide the most current insights.</p>
               <p className="mt-2">
-                <strong>Disclaimer:</strong> This information is for educational purposes only and should not be considered financial advice. Always conduct your own research before making investment decisions.
+                <strong>Last updated:</strong> {new Date(stockData.lastUpdated).toLocaleString('en-US', {timeZone: 'America/New_York'})} EST
               </p>
             </div>
           </div>
