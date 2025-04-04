@@ -7,36 +7,49 @@ import './globals.css';
 export default function RootLayout({ children }: Readonly<{
   children: React.ReactNode
 }>) {
-  const [lastUpdated, setLastUpdated] = useState(new Date().toISOString());
+  const [lastUpdated, setLastUpdated] = useState<string>(new Date().toISOString());
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Update the last updated time every minute
   useEffect(() => {
-    const interval = setInterval(() => {
-      const now = new Date();
-      const lastUpdate = new Date(lastUpdated);
-      const diffMinutes = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60));
-      
-      // If more than 60 minutes have passed, refresh the data
-      if (diffMinutes >= 60) {
-        fetch('/api/refresh')
-          .then(res => res.json())
-          .then(data => {
-            if (data.success) {
-              setLastUpdated(data.refreshedAt);
-            }
-          })
-          .catch(err => console.error('Error refreshing data:', err));
-      }
-    }, 60000); // Check every minute
+    // Set loading to false after component mounts
+    setIsLoading(false);
     
-    return () => clearInterval(interval);
+    try {
+      const interval = setInterval(() => {
+        const now = new Date();
+        const lastUpdate = new Date(lastUpdated);
+        const diffMinutes = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60));
+        
+        // If more than 60 minutes have passed, refresh the data
+        if (diffMinutes >= 60) {
+          fetch('/api/refresh')
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                setLastUpdated(data.refreshedAt);
+              }
+            })
+            .catch(err => {
+              console.error('Error refreshing data:', err);
+              // Don't set error state here to avoid UI disruption
+            });
+        }
+      }, 60000); // Check every minute
+      
+      return () => clearInterval(interval);
+    } catch (err) {
+      console.error('Error setting up refresh interval:', err);
+      return () => {}; // Return empty cleanup function
+    }
   }, [lastUpdated]);
   
   return (
     <html lang="en">
       <body className="font-sans antialiased">
-        {/* Initialize hourly data refresh */}
-        <DataRefreshInitializer />
+        {/* Initialize hourly data refresh with error handling */}
+        {!isLoading && <DataRefreshInitializer />}
         
         {/* Header */}
         <header className="bg-blue-600 text-white shadow-md">
@@ -57,6 +70,13 @@ export default function RootLayout({ children }: Readonly<{
             </div>
           </div>
         </header>
+        
+        {/* Error message if needed */}
+        {error && (
+          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 max-w-7xl mx-auto mt-2">
+            <p>{error}</p>
+          </div>
+        )}
         
         {/* Main content */}
         {children}
