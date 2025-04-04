@@ -15,69 +15,56 @@ const YAHOO_FINANCE_ENDPOINTS = {
 };
 
 // Alternative endpoints to try if primary fails
-const ALTERNATIVE_ENDPOINTS = {
-  'chart': [
-    'https://query2.finance.yahoo.com/v8/finance/chart',
-    'https://query1.finance.yahoo.com/v8/finance/chart'
-  ],
-  'quoteSummary': [
-    'https://query2.finance.yahoo.com/v8/finance/quoteSummary',
-    'https://query1.finance.yahoo.com/v8/finance/quoteSummary'
-  ],
-  'insights': [
-    'https://query2.finance.yahoo.com/v8/finance/insights',
-    'https://query1.finance.yahoo.com/v8/finance/insights'
-  ]
-};
+const ALTERNATIVE_ENDPOINTS = [
+  'https://query1.finance.yahoo.com',
+  'https://query2.finance.yahoo.com',
+  'https://finance.yahoo.com'
+];
 
 /**
- * Fetch data from Yahoo Finance with multiple endpoint attempts
+ * Enhanced fetch with detailed logging and multiple retry strategies
  */
-async function fetchYahooFinanceData(yahooFinanceUrl, endpoint, symbol) {
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    'Accept': 'application/json'
-  };
-
-  // Try primary URL first
+async function fetchWithDetailedLogging(url, options = {}) {
   try {
-    const response = await fetch(yahooFinanceUrl, { 
-      headers, 
-      timeout: 10000 
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'application/json',
+        ...options.headers
+      },
+      timeout: options.timeout || 10000
     });
 
-    // If response is not JSON, try alternative endpoints
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const errorText = await response.text();
-      console.warn(`Non-JSON response from ${yahooFinanceUrl}. Attempting alternative endpoints.`);
-      console.warn('Response content:', errorText.slice(0, 500)); // Log first 500 chars
-      
-      // Try alternative endpoints
-      for (const altUrl of ALTERNATIVE_ENDPOINTS[endpoint]) {
-        try {
-          const alternativeUrl = `${altUrl}/${symbol}${yahooFinanceUrl.includes('?') ? yahooFinanceUrl.slice(yahooFinanceUrl.indexOf('?')) : ''}`;
-          const altResponse = await fetch(alternativeUrl, { 
-            headers, 
-            timeout: 10000 
-          });
+    // Log full response details for debugging
+    console.log('Response Status:', response.status);
+    console.log('Response Headers:', Object.fromEntries(response.headers.entries()));
 
-          const altContentType = altResponse.headers.get('content-type') || '';
-          if (altContentType.includes('application/json')) {
-            return await altResponse.json();
-          }
-        } catch (altError) {
-          console.warn(`Alternative endpoint ${altUrl} failed:`, altError);
-        }
-      }
+    // Try to get response text first
+    const responseText = await response.text();
 
-      // If all endpoints fail, throw an error
-      throw new Error('No valid JSON response from any Yahoo Finance endpoint');
+    // Log full response text for debugging
+    console.log('Full Response Text (first 2000 chars):', responseText.slice(0, 2000));
+
+    // Try to parse as JSON
+    let jsonData;
+    try {
+      jsonData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('JSON Parsing Error:', parseError);
+      throw new Error(`Failed to parse JSON. Response status: ${response.status}`);
     }
 
-    return await response.json();
+    return jsonData;
   } catch (error) {
-    console.error(`Error fetching data for ${symbol} from ${yahooFinanceUrl}:`, error);
+    console.error('Fetch Error:', {
+      url,
+      error: {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      }
+    });
     throw error;
   }
 }
@@ -116,58 +103,92 @@ export async function GET(request) {
     );
   }
   
-  // Construct Yahoo Finance API URL based on endpoint
-  let yahooFinanceUrl = `https://query1.finance.yahoo.com/${YAHOO_FINANCE_ENDPOINTS[endpoint]}/${symbol}`;
+  // Detailed logging of incoming request
+  console.log('Incoming Finance Proxy Request:', {
+    endpoint,
+    symbol,
+    modules,
+    interval,
+    range,
+    region
+  });
+
+  // Try multiple endpoint strategies
+  const endpointPath = YAHOO_FINANCE_ENDPOINTS[endpoint];
+  const baseUrls = ALTERNATIVE_ENDPOINTS;
   
-  // Add query parameters for specific endpoints
-  switch (endpoint) {
-    case 'chart':
-      yahooFinanceUrl += `?region=${region}&interval=${interval}&range=${range}`;
-      break;
-    case 'quoteSummary':
-      yahooFinanceUrl += `?modules=${modules}&region=${region}`;
-      break;
-    case 'insights':
-      // No additional parameters needed
-      break;
-  }
-  
-  try {
-    // Fetch data, with built-in fallback mechanism
-    const data = await fetchYahooFinanceData(yahooFinanceUrl, endpoint, symbol);
-    
-    // Additional validation of response data
-    if (!data || (endpoint !== 'insights' && !data.chart && !data.quoteSummary)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Received empty or invalid data from Yahoo Finance API',
-          details: data
-        },
-        { status: 500 }
-      );
+  for (const baseUrl of baseUrls) {
+    try {
+      // Construct full URL with parameters
+      let fullUrl = `${baseUrl}/${endpointPath}/${symbol}`;
+      
+      // Add query parameters for specific endpoints
+      const queryParams = new URLSearchParams();
+      
+      switch (endpoint) {
+        case 'chart':
+          queryParams.set('region', region);
+          queryParams.set('interval', interval);
+          queryParams.set('range', range);
+          break;
+        case 'quoteSummary':
+          queryParams.set('modules', modules);
+          queryParams.set('region', region);
+          break;
+      }
+      
+      // Append query parameters if any
+      if (queryParams.toString()) {
+        fullUrl += `?${queryParams.toString()}`;
+      }
+      
+      console.log(`Attempting to fetch from: ${fullUrl}`);
+      
+      // Attempt to fetch and parse data
+      const data = await fetchWithDetailedLogging(fullUrl);
+      
+      // Additional validation of response data
+      if (!data || (endpoint !== 'insights' && !data.chart && !data.quoteSummary)) {
+        console.warn('Invalid data structure:', data);
+        continue; // Try next endpoint
+      }
+      
+      // Return successful response
+      return NextResponse.json({
+        success: true,
+        data,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error(`Error with base URL ${baseUrl}:`, {
+        symbol,
+        endpoint,
+        errorMessage: error.message
+      });
+      
+      // If this is the last URL, throw the error
+      if (baseUrl === baseUrls[baseUrls.length - 1]) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Failed to fetch data from Yahoo Finance',
+            error: {
+              name: error.name,
+              message: error.message
+            }
+          },
+          { status: 500 }
+        );
+      }
     }
-    
-    // Return the data
-    return NextResponse.json({
-      success: true,
-      data,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error(`Error proxying request to Yahoo Finance for ${symbol}:`, error);
-    
-    // Return detailed error response
-    return NextResponse.json(
-      {
-        success: false,
-        message: 'Failed to fetch data from Yahoo Finance',
-        error: {
-          name: error.name,
-          message: error.message
-        }
-      },
-      { status: 500 }
-    );
   }
+  
+  // Fallback error response (shouldn't normally reach here)
+  return NextResponse.json(
+    {
+      success: false,
+      message: 'Exhausted all possible Yahoo Finance endpoints'
+    },
+    { status: 500 }
+  );
 }
