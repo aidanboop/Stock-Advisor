@@ -1,41 +1,45 @@
 /**
- * Yahoo Finance API client for fetching stock data
+ * Updated Yahoo Finance API client that uses our proxy endpoint
+ * Place this file at: src/lib/api/yahooFinance.js (replacing the existing file)
  */
 
 // Helper function to create API client
 const createApiClient = async () => {
   try {
-    // For Vercel deployment, we'll use fetch directly
+    // Use our proxy API route to avoid CORS issues
     return {
       call_api: async (apiName, params) => {
-        // This is a simplified implementation for demonstration
-        // In a production environment, you would use a proper API key and authentication
-        
-        const baseUrl = 'https://query1.finance.yahoo.com/v8';
+        const baseUrl = '/api/finance-proxy';
         let endpoint = '';
+        let queryParams = new URLSearchParams();
         
         if (apiName === 'YahooFinance/get_stock_chart') {
-          endpoint = '/chart/' + params.query.symbol;
-          const queryParams = new URLSearchParams({
-            region: params.query.region || 'US',
-            interval: params.query.interval || '1d',
-            range: params.query.range || '1mo',
-          });
-          return fetch(`${baseUrl}${endpoint}?${queryParams}`).then(res => res.json());
+          endpoint = 'chart';
+          queryParams.append('endpoint', endpoint);
+          queryParams.append('symbol', params.query.symbol);
+          queryParams.append('region', params.query.region || 'US');
+          queryParams.append('interval', params.query.interval || '1d');
+          queryParams.append('range', params.query.range || '1mo');
+          
+          return fetch(`${baseUrl}?${queryParams.toString()}`).then(res => res.json());
         }
         
         if (apiName === 'YahooFinance/get_stock_holders') {
-          endpoint = '/finance/quoteSummary/' + params.query.symbol;
-          const queryParams = new URLSearchParams({
-            modules: 'insiderHolders',
-            region: params.query.region || 'US',
-          });
-          return fetch(`${baseUrl}${endpoint}?${queryParams}`).then(res => res.json());
+          endpoint = 'quoteSummary';
+          queryParams.append('endpoint', endpoint);
+          queryParams.append('symbol', params.query.symbol);
+          queryParams.append('modules', 'insiderHolders');
+          queryParams.append('region', params.query.region || 'US');
+          
+          return fetch(`${baseUrl}?${queryParams.toString()}`).then(res => res.json());
         }
         
         if (apiName === 'YahooFinance/get_stock_insights') {
-          endpoint = '/finance/insights/' + params.query.symbol;
-          return fetch(`${baseUrl}${endpoint}`).then(res => res.json());
+          endpoint = 'insights';
+          queryParams.append('endpoint', endpoint);
+          queryParams.append('symbol', params.query.symbol);
+          
+          return fetch(`${baseUrl}?${queryParams.toString()}`).then(res => res.json());
         }
         
         throw new Error(`Unknown API: ${apiName}`);
@@ -56,7 +60,7 @@ const createApiClient = async () => {
 export const getStockChart = async (symbol, interval = '1h', range = '1d') => {
   try {
     const client = await createApiClient();
-    const data = await client.call_api('YahooFinance/get_stock_chart', {
+    const response = await client.call_api('YahooFinance/get_stock_chart', {
       query: {
         symbol,
         region: 'US',
@@ -66,7 +70,12 @@ export const getStockChart = async (symbol, interval = '1h', range = '1d') => {
         includeAdjustedClose: true,
       }
     });
-    return data;
+    
+    if (!response.success) {
+      throw new Error(response.message || 'Failed to fetch chart data');
+    }
+    
+    return response.data;
   } catch (error) {
     console.error(`Error fetching chart data for ${symbol}:`, error);
     throw error;
@@ -80,14 +89,19 @@ export const getStockChart = async (symbol, interval = '1h', range = '1d') => {
 export const getStockHolders = async (symbol) => {
   try {
     const client = await createApiClient();
-    const data = await client.call_api('YahooFinance/get_stock_holders', {
+    const response = await client.call_api('YahooFinance/get_stock_holders', {
       query: {
         symbol,
         region: 'US',
         lang: 'en-US',
       }
     });
-    return data;
+    
+    if (!response.success) {
+      throw new Error(response.message || 'Failed to fetch holders data');
+    }
+    
+    return response.data;
   } catch (error) {
     console.error(`Error fetching holders data for ${symbol}:`, error);
     throw error;
@@ -101,12 +115,17 @@ export const getStockHolders = async (symbol) => {
 export const getStockInsights = async (symbol) => {
   try {
     const client = await createApiClient();
-    const data = await client.call_api('YahooFinance/get_stock_insights', {
+    const response = await client.call_api('YahooFinance/get_stock_insights', {
       query: {
         symbol,
       }
     });
-    return data;
+    
+    if (!response.success) {
+      throw new Error(response.message || 'Failed to fetch insights data');
+    }
+    
+    return response.data;
   } catch (error) {
     console.error(`Error fetching insights data for ${symbol}:`, error);
     throw error;
@@ -119,12 +138,20 @@ export const getStockInsights = async (symbol) => {
  */
 export const getComprehensiveStockData = async (symbol) => {
   try {
-    const [chartData, holdersData, insightsData] = await Promise.all([
+    // Since we might hit rate limits or have other issues, use Promise.allSettled
+    // to get as much data as possible, even if some requests fail
+    const [chartResult, holdersResult, insightsResult] = await Promise.allSettled([
       getStockChart(symbol, '1d', '1mo'),
       getStockHolders(symbol),
       getStockInsights(symbol),
     ]);
     
+    // Extract values or null for each result
+    const chartData = chartResult.status === 'fulfilled' ? chartResult.value : null;
+    const holdersData = holdersResult.status === 'fulfilled' ? holdersResult.value : null;
+    const insightsData = insightsResult.status === 'fulfilled' ? insightsResult.value : null;
+    
+    // Return whatever data we have
     return {
       symbol,
       chartData,
