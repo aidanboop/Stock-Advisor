@@ -1,4 +1,4 @@
-import { fetchStockData } from '../../../lib/utils/stockData';
+import { getTopRecommendations, getMarketOverview } from '../lib/utils/stockData';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 30; // Revalidate every 30 seconds
