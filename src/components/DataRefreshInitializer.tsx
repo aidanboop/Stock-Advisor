@@ -9,7 +9,7 @@ import { startHourlyRefresh } from '../lib/utils/dataRefresh';
 
 export default function DataRefreshInitializer() {
   const [status, setStatus] = useState('initializing');
-  const [lastRefresh, setLastRefresh] = useState(null);
+  const [lastRefresh, setLastRefresh] = useState<string | null>(null);
 
   useEffect(() => {
     // Start hourly refresh when component mounts
