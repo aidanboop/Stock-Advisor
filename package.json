@@ -44,7 +44,16 @@
     "@radix-ui/react-tooltip": "^1.0.6",
     "class-variance-authority": "^0.7.0",
     "lucide-react": "^0.279.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "cmdk": "^0.2.0",
+    "embla-carousel-react": "^8.0.0",
+    "sonner": "^1.0.0",
+    "recharts": "^2.7.2",
+    "vaul": "^0.6.8",
+    "react-day-picker": "^8.8.0",
+    "input-otp": "^0.2.0",
+    "react-resizable-panels": "^0.0.55",
+    "next-themes": "^0.2.1"
   },
   "devDependencies": {
     "@types/node": "^20",
