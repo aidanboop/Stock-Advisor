@@ -14,56 +14,83 @@ const YAHOO_FINANCE_ENDPOINTS = {
   'insights': 'v8/finance/insights'
 };
 
-// Alternative endpoints to try if primary fails
-const ALTERNATIVE_ENDPOINTS = [
-  'https://query1.finance.yahoo.com',
-  'https://query2.finance.yahoo.com',
-  'https://finance.yahoo.com'
+// Alternative query domains
+const QUERY_DOMAINS = [
+  'query1.finance.yahoo.com',
+  'query2.finance.yahoo.com',
+  'finance.yahoo.com'
 ];
 
 /**
- * Enhanced fetch with detailed logging and multiple retry strategies
+ * Check if response is likely to be HTML (error page)
  */
-async function fetchWithDetailedLogging(url, options = {}) {
+function isHtmlResponse(contentType, text) {
+  return (
+    (contentType && contentType.includes('text/html')) || 
+    (text && text.includes('<!DOCTYPE html>')) ||
+    (text && text.includes('<html'))
+  );
+}
+
+/**
+ * Fetch data with multiple strategies
+ */
+async function fetchYahooFinanceData(url, symbol, endpoint) {
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Accept': 'application/json'
+  };
+
   try {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'application/json',
-        ...options.headers
-      },
-      timeout: options.timeout || 10000
+    const response = await fetch(url, { 
+      headers, 
+      timeout: 10000 
     });
 
-    // Log full response details for debugging
-    console.log('Response Status:', response.status);
-    console.log('Response Headers:', Object.fromEntries(response.headers.entries()));
-
-    // Try to get response text first
+    // Log response details for debugging
+    const contentType = response.headers.get('content-type') || '';
     const responseText = await response.text();
 
-    // Log full response text for debugging
-    console.log('Full Response Text (first 2000 chars):', responseText.slice(0, 2000));
+    // Detailed logging for troubleshooting
+    console.log(`Fetch for ${symbol} (${endpoint}):`, {
+      status: response.status,
+      contentType,
+      responseTextLength: responseText.length,
+      isHtml: isHtmlResponse(contentType, responseText)
+    });
 
-    // Try to parse as JSON
+    // If HTML or error status, log more details
+    if (isHtmlResponse(contentType, responseText)) {
+      console.warn(`Received HTML response for ${symbol}:`, responseText.slice(0, 1000));
+      throw new Error('Received HTML instead of JSON');
+    }
+
+    // Try to parse JSON
     let jsonData;
     try {
       jsonData = JSON.parse(responseText);
     } catch (parseError) {
-      console.error('JSON Parsing Error:', parseError);
-      throw new Error(`Failed to parse JSON. Response status: ${response.status}`);
+      console.error(`JSON Parsing Error for ${symbol}:`, {
+        parseError,
+        contentType,
+        responseTextStart: responseText.slice(0, 500)
+      });
+      throw new Error('Failed to parse JSON response');
+    }
+
+    // Validate response structure
+    if (!jsonData || (endpoint !== 'insights' && !jsonData.chart && !jsonData.quoteSummary)) {
+      console.warn(`Invalid data structure for ${symbol}:`, jsonData);
+      throw new Error('Invalid response structure');
     }
 
     return jsonData;
   } catch (error) {
-    console.error('Fetch Error:', {
+    console.error(`Fetch Error for ${symbol}:`, {
       url,
-      error: {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      }
+      endpoint,
+      errorName: error.name,
+      errorMessage: error.message
     });
     throw error;
   }
@@ -102,56 +129,33 @@ export async function GET(request) {
       { status: 400 }
     );
   }
-  
-  // Detailed logging of incoming request
-  console.log('Incoming Finance Proxy Request:', {
-    endpoint,
-    symbol,
-    modules,
-    interval,
-    range,
-    region
-  });
 
-  // Try multiple endpoint strategies
-  const endpointPath = YAHOO_FINANCE_ENDPOINTS[endpoint];
-  const baseUrls = ALTERNATIVE_ENDPOINTS;
-  
-  for (const baseUrl of baseUrls) {
+  // Prepare query parameters
+  const queryParams = new URLSearchParams();
+  switch (endpoint) {
+    case 'chart':
+      queryParams.set('region', region);
+      queryParams.set('interval', interval);
+      queryParams.set('range', range);
+      break;
+    case 'quoteSummary':
+      queryParams.set('modules', modules);
+      queryParams.set('region', region);
+      break;
+  }
+
+  // Try multiple domains
+  for (const domain of QUERY_DOMAINS) {
     try {
-      // Construct full URL with parameters
-      let fullUrl = `${baseUrl}/${endpointPath}/${symbol}`;
-      
-      // Add query parameters for specific endpoints
-      const queryParams = new URLSearchParams();
-      
-      switch (endpoint) {
-        case 'chart':
-          queryParams.set('region', region);
-          queryParams.set('interval', interval);
-          queryParams.set('range', range);
-          break;
-        case 'quoteSummary':
-          queryParams.set('modules', modules);
-          queryParams.set('region', region);
-          break;
-      }
-      
-      // Append query parameters if any
-      if (queryParams.toString()) {
-        fullUrl += `?${queryParams.toString()}`;
-      }
-      
-      console.log(`Attempting to fetch from: ${fullUrl}`);
-      
-      // Attempt to fetch and parse data
-      const data = await fetchWithDetailedLogging(fullUrl);
-      
-      // Additional validation of response data
-      if (!data || (endpoint !== 'insights' && !data.chart && !data.quoteSummary)) {
-        console.warn('Invalid data structure:', data);
-        continue; // Try next endpoint
-      }
+      // Construct full URL
+      const fullUrl = `https://${domain}/${YAHOO_FINANCE_ENDPOINTS[endpoint]}/${symbol}${
+        queryParams.toString() ? `?${queryParams.toString()}` : ''
+      }`;
+
+      console.log(`Attempting to fetch ${symbol} from ${fullUrl}`);
+
+      // Attempt to fetch data
+      const data = await fetchYahooFinanceData(fullUrl, symbol, endpoint);
       
       // Return successful response
       return NextResponse.json({
@@ -160,14 +164,10 @@ export async function GET(request) {
         timestamp: new Date().toISOString()
       });
     } catch (error) {
-      console.error(`Error with base URL ${baseUrl}:`, {
-        symbol,
-        endpoint,
-        errorMessage: error.message
-      });
+      console.error(`Error fetching ${symbol} from ${domain}:`, error.message);
       
-      // If this is the last URL, throw the error
-      if (baseUrl === baseUrls[baseUrls.length - 1]) {
+      // If this is the last domain, return final error
+      if (domain === QUERY_DOMAINS[QUERY_DOMAINS.length - 1]) {
         return NextResponse.json(
           {
             success: false,
