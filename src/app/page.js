@@ -1,7 +1,7 @@
-import { getTopRecommendations, getMarketOverview } from '../lib/utils/stockData';
+import { fetchStockData } from '../../../lib/utils/stockData';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 3600; // Revalidate every hour
+export const revalidate = 30; // Revalidate every 30 seconds
 
 export default async function Home() {
   // Get top stock recommendations (focus on tech stocks)
