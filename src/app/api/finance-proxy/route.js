@@ -7,6 +7,81 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+// Mapping of endpoints to Yahoo Finance API paths
+const YAHOO_FINANCE_ENDPOINTS = {
+  'chart': 'v8/finance/chart',
+  'quoteSummary': 'v8/finance/quoteSummary',
+  'insights': 'v8/finance/insights'
+};
+
+// Alternative endpoints to try if primary fails
+const ALTERNATIVE_ENDPOINTS = {
+  'chart': [
+    'https://query2.finance.yahoo.com/v8/finance/chart',
+    'https://query1.finance.yahoo.com/v8/finance/chart'
+  ],
+  'quoteSummary': [
+    'https://query2.finance.yahoo.com/v8/finance/quoteSummary',
+    'https://query1.finance.yahoo.com/v8/finance/quoteSummary'
+  ],
+  'insights': [
+    'https://query2.finance.yahoo.com/v8/finance/insights',
+    'https://query1.finance.yahoo.com/v8/finance/insights'
+  ]
+};
+
+/**
+ * Fetch data from Yahoo Finance with multiple endpoint attempts
+ */
+async function fetchYahooFinanceData(yahooFinanceUrl, endpoint, symbol) {
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Accept': 'application/json'
+  };
+
+  // Try primary URL first
+  try {
+    const response = await fetch(yahooFinanceUrl, { 
+      headers, 
+      timeout: 10000 
+    });
+
+    // If response is not JSON, try alternative endpoints
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const errorText = await response.text();
+      console.warn(`Non-JSON response from ${yahooFinanceUrl}. Attempting alternative endpoints.`);
+      console.warn('Response content:', errorText.slice(0, 500)); // Log first 500 chars
+      
+      // Try alternative endpoints
+      for (const altUrl of ALTERNATIVE_ENDPOINTS[endpoint]) {
+        try {
+          const alternativeUrl = `${altUrl}/${symbol}${yahooFinanceUrl.includes('?') ? yahooFinanceUrl.slice(yahooFinanceUrl.indexOf('?')) : ''}`;
+          const altResponse = await fetch(alternativeUrl, { 
+            headers, 
+            timeout: 10000 
+          });
+
+          const altContentType = altResponse.headers.get('content-type') || '';
+          if (altContentType.includes('application/json')) {
+            return await altResponse.json();
+          }
+        } catch (altError) {
+          console.warn(`Alternative endpoint ${altUrl} failed:`, altError);
+        }
+      }
+
+      // If all endpoints fail, throw an error
+      throw new Error('No valid JSON response from any Yahoo Finance endpoint');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching data for ${symbol} from ${yahooFinanceUrl}:`, error);
+    throw error;
+  }
+}
+
 /**
  * Proxy for Yahoo Finance API requests to bypass CORS issues
  */
@@ -30,88 +105,36 @@ export async function GET(request) {
     );
   }
   
-  // Determine Yahoo Finance API URL based on endpoint
-  let yahooFinanceUrl = '';
+  // Validate endpoint
+  if (!YAHOO_FINANCE_ENDPOINTS[endpoint]) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Invalid endpoint. Must be one of: chart, quoteSummary, insights'
+      },
+      { status: 400 }
+    );
+  }
   
+  // Construct Yahoo Finance API URL based on endpoint
+  let yahooFinanceUrl = `https://query1.finance.yahoo.com/${YAHOO_FINANCE_ENDPOINTS[endpoint]}/${symbol}`;
+  
+  // Add query parameters for specific endpoints
   switch (endpoint) {
     case 'chart':
-      yahooFinanceUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?region=${region}&interval=${interval}&range=${range}`;
+      yahooFinanceUrl += `?region=${region}&interval=${interval}&range=${range}`;
       break;
     case 'quoteSummary':
-      yahooFinanceUrl = `https://query1.finance.yahoo.com/v8/finance/quoteSummary/${symbol}?modules=${modules}&region=${region}`;
+      yahooFinanceUrl += `?modules=${modules}&region=${region}`;
       break;
     case 'insights':
-      yahooFinanceUrl = `https://query1.finance.yahoo.com/v8/finance/insights/${symbol}`;
+      // No additional parameters needed
       break;
-    default:
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Invalid endpoint. Must be one of: chart, quoteSummary, insights'
-        },
-        { status: 400 }
-      );
   }
   
   try {
-    // Fetch data from Yahoo Finance with enhanced error handling
-    const response = await fetch(yahooFinanceUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'application/json'
-      },
-      timeout: 10000 // 10-second timeout
-    });
-    
-    // Check if response is OK
-    if (!response.ok) {
-      // Try to extract error details
-      const errorText = await response.text();
-      console.error(`Yahoo Finance API error: ${response.status} - ${errorText}`);
-      
-      return NextResponse.json(
-        {
-          success: false,
-          message: `Failed to fetch data from Yahoo Finance. Status: ${response.status}`,
-          details: errorText
-        },
-        { status: response.status }
-      );
-    }
-    
-    // Check content type
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      const errorText = await response.text();
-      console.error(`Unexpected content type: ${contentType}. Response: ${errorText}`);
-      
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Received non-JSON response from Yahoo Finance API',
-          details: errorText
-        },
-        { status: 500 }
-      );
-    }
-    
-    // Get the data from the response
-    let data;
-    try {
-      data = await response.json();
-    } catch (parseError) {
-      console.error('Error parsing JSON response:', parseError);
-      const errorText = await response.text();
-      
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Failed to parse JSON response',
-          details: errorText
-        },
-        { status: 500 }
-      );
-    }
+    // Fetch data, with built-in fallback mechanism
+    const data = await fetchYahooFinanceData(yahooFinanceUrl, endpoint, symbol);
     
     // Additional validation of response data
     if (!data || (endpoint !== 'insights' && !data.chart && !data.quoteSummary)) {
@@ -141,8 +164,7 @@ export async function GET(request) {
         message: 'Failed to fetch data from Yahoo Finance',
         error: {
           name: error.name,
-          message: error.message,
-          stack: error.stack
+          message: error.message
         }
       },
       { status: 500 }
