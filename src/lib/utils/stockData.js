@@ -1,9 +1,8 @@
 /**
- * Revised stock data management utilities with improved error handling
- * Place this file at: src/lib/utils/stockData.js
+ * Stock data management utilities using Polygon.io API
  */
 
-import { getComprehensiveStockData } from '../api/yahooFinance';
+import { getComprehensiveStockData } from '../api/polygonClient';
 import { generateBuyRecommendation } from './stockAnalysis';
 import { mockTechRecommendations, mockAllRecommendations, mockMarketOverview } from './mockData';
 
@@ -33,11 +32,11 @@ export const TECH_STOCKS = [
 
 // List of major US stock indices
 export const STOCK_INDICES = [
-  '^GSPC', // S&P 500
-  '^DJI',  // Dow Jones Industrial Average
-  '^IXIC', // NASDAQ Composite
-  '^RUT',  // Russell 2000
-  '^VIX',  // CBOE Volatility Index
+  'SPY',  // S&P 500 ETF
+  'DIA',  // Dow Jones Industrial Average ETF
+  'QQQ',  // NASDAQ-100 ETF
+  'IWM',  // Russell 2000 ETF
+  'VIX',  // Volatility Index
 ];
 
 // List of major US sectors
@@ -59,7 +58,7 @@ let stockDataCache = {};
 let lastCacheRefresh = null;
 const CACHE_EXPIRY_MS = 30 * 1000;
 
-// Initially use mock data to ensure UI displays something
+// Control whether to use mock data
 let useMockData = false;
 
 /**
@@ -125,7 +124,7 @@ const getMockStockData = (symbol) => {
   if (mockStock) return mockStock;
   
   // For indices
-  if (symbol.startsWith('^')) {
+  if (STOCK_INDICES.includes(symbol)) {
     const mockIndex = mockMarketOverview.indices.find(i => i.symbol === symbol);
     if (mockIndex) return mockIndex;
   }
@@ -217,6 +216,11 @@ export const fetchMultipleStocks = async (symbols, forceRefresh = false) => {
           console.error(`Failed to fetch data for ${batch[index]}:`, result.reason);
         }
       });
+      
+      // Add a small delay between batches to avoid rate limiting
+      if (i + batchSize < symbols.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
     
     return results;
@@ -224,7 +228,7 @@ export const fetchMultipleStocks = async (symbols, forceRefresh = false) => {
     console.error('Error fetching multiple stocks:', error);
     
     // If fetching real data fails, return mock data
-    if (symbols.some(symbol => symbol.startsWith('^'))) {
+    if (symbols.some(symbol => STOCK_INDICES.includes(symbol))) {
       // If fetching indices, return mock indices
       return mockMarketOverview.indices;
     } else if (symbols.some(symbol => SECTORS.includes(symbol))) {
