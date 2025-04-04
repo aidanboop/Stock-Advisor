@@ -218,25 +218,25 @@ export const mockMarketOverview = {
     {
       symbol: '^GSPC',
       name: 'S&P 500',
-      metadata: { price: 5,116.17 },
+      metadata: { price: 5116.17 },
       analysis: { price: { dailyChange: 0.74 } }
     },
     {
       symbol: '^DJI',
       name: 'Dow Jones Industrial Average',
-      metadata: { price: 38,143.33 },
+      metadata: { price: 38143.33 },
       analysis: { price: { dailyChange: 0.56 } }
     },
     {
       symbol: '^IXIC',
       name: 'NASDAQ Composite',
-      metadata: { price: 16,275.37 },
+      metadata: { price: 16275.37 },
       analysis: { price: { dailyChange: 1.14 } }
     },
     {
       symbol: '^RUT',
       name: 'Russell 2000',
-      metadata: { price: 2,053.14 },
+      metadata: { price: 2053.14 },
       analysis: { price: { dailyChange: 0.82 } }
     },
     {
