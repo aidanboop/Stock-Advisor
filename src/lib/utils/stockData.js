@@ -57,7 +57,7 @@ export const SECTORS = [
 // Cache for stock data to minimize API calls
 let stockDataCache = {};
 let lastCacheRefresh = null;
-const CACHE_EXPIRY_MS = 60 * 60 * 1000; // 1 hour cache expiry
+const CACHE_EXPIRY_MS = 30 * 1000;
 
 // Initially use mock data to ensure UI displays something
 let useMockData = true;
