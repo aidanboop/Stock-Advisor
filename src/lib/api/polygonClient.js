@@ -1,6 +1,6 @@
 /**
  * Polygon.io API client for Stock Advisor application
- * Enhanced with better API key handling
+ * Enhanced with better API key handling and URL construction
  */
 
 // Store API key in environment variable for security
@@ -29,6 +29,23 @@ const validateApiKey = () => {
 
 // Validate API key on module load
 const isApiKeyValid = validateApiKey();
+
+// Helper to get base URL in different environments
+const getBaseUrl = () => {
+  // In browser environment
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  
+  // In server environment
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (appUrl) {
+    return appUrl;
+  }
+  
+  // Fallback for local development
+  return 'http://localhost:3000';
+};
 
 /**
  * Get stock aggregates (candlestick) data
@@ -60,8 +77,9 @@ export const getStockAggregates = async (symbol, multiplier = 1, timespan = 'day
       from = fromDate.toISOString().split('T')[0];
     }
     
-    // Construct URL
-    const url = `/api/polygon-proxy/aggregates/${normalizedSymbol}/${multiplier}/${timespan}/${from}/${to}`;
+    // Construct URL with base URL
+    const baseUrl = getBaseUrl();
+    const url = `${baseUrl}/api/polygon-proxy/aggregates/${normalizedSymbol}/${multiplier}/${timespan}/${from}/${to}`;
     
     // Make the request
     const response = await fetch(url);
@@ -101,8 +119,9 @@ export const getDailyOpenClose = async (symbol, date) => {
       date = yesterday.toISOString().split('T')[0];
     }
     
-    // Construct URL
-    const url = `/api/polygon-proxy/daily-open-close/${normalizedSymbol}/${date}`;
+    // Construct URL with base URL
+    const baseUrl = getBaseUrl();
+    const url = `${baseUrl}/api/polygon-proxy/daily-open-close/${normalizedSymbol}/${date}`;
     
     // Make the request
     const response = await fetch(url);
@@ -134,8 +153,9 @@ export const getPreviousClose = async (symbol) => {
     // Normalize parameters
     const normalizedSymbol = symbol.toUpperCase();
     
-    // Construct URL
-    const url = `/api/polygon-proxy/previous-close/${normalizedSymbol}`;
+    // Construct URL with base URL
+    const baseUrl = getBaseUrl();
+    const url = `${baseUrl}/api/polygon-proxy/previous-close/${normalizedSymbol}`;
     
     // Make the request
     const response = await fetch(url);
@@ -167,8 +187,9 @@ export const getTickerDetails = async (symbol) => {
     // Normalize parameters
     const normalizedSymbol = symbol.toUpperCase();
     
-    // Construct URL
-    const url = `/api/polygon-proxy/ticker-details/${normalizedSymbol}`;
+    // Construct URL with base URL
+    const baseUrl = getBaseUrl();
+    const url = `${baseUrl}/api/polygon-proxy/ticker-details/${normalizedSymbol}`;
     
     // Make the request
     const response = await fetch(url);
@@ -200,8 +221,9 @@ export const getInsiderTransactions = async (symbol) => {
     // Normalize parameters
     const normalizedSymbol = symbol.toUpperCase();
     
-    // Construct URL
-    const url = `/api/polygon-proxy/insider-transactions/${normalizedSymbol}`;
+    // Construct URL with base URL
+    const baseUrl = getBaseUrl();
+    const url = `${baseUrl}/api/polygon-proxy/insider-transactions/${normalizedSymbol}`;
     
     // Make the request
     const response = await fetch(url);
@@ -229,8 +251,9 @@ export const getMarketStatus = async () => {
       throw new Error('Invalid Polygon.io API key. Please check your environment variables.');
     }
     
-    // Construct URL
-    const url = `/api/polygon-proxy/market-status`;
+    // Construct URL with base URL
+    const baseUrl = getBaseUrl();
+    const url = `${baseUrl}/api/polygon-proxy/market-status`;
     
     // Make the request
     const response = await fetch(url);
@@ -264,8 +287,9 @@ export const getTechnicalIndicators = async (symbol, indicator, params = {}) => 
     // Normalize parameters
     const normalizedSymbol = symbol.toUpperCase();
     
-    // Construct URL
-    const url = `/api/polygon-proxy/indicators/${indicator}/${normalizedSymbol}`;
+    // Construct URL with base URL
+    const baseUrl = getBaseUrl();
+    const url = `${baseUrl}/api/polygon-proxy/indicators/${indicator}/${normalizedSymbol}`;
     
     // Add additional parameters
     const queryParams = new URLSearchParams(params);
