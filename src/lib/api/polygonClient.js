@@ -1,6 +1,6 @@
 /**
  * Polygon.io API client for Stock Advisor application
- * Enhanced with better API key handling and URL construction
+ * Enhanced with better error handling and fallback mechanisms
  */
 
 // Store API key in environment variable for security
@@ -48,6 +48,89 @@ const getBaseUrl = () => {
 };
 
 /**
+ * Enhanced fetch function with better error handling
+ * @param {string} url - URL to fetch
+ * @param {Object} options - Fetch options
+ * @returns {Promise<Object>} - JSON response
+ */
+async function enhancedFetch(url, options = {}) {
+  try {
+    console.log(`Fetching from: ${url}`);
+    
+    // Set default fetch options
+    const fetchOptions = {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      ...options
+    };
+    
+    // Add timeout to avoid hanging requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
+    
+    // Make the request with signal
+    const response = await fetch(url, {
+      ...fetchOptions,
+      signal: controller.signal
+    });
+    
+    // Clear timeout
+    clearTimeout(timeoutId);
+    
+    // Check if response is ok (status in the range 200-299)
+    if (!response.ok) {
+      const errorText = await response.text();
+      
+      // Try to determine if it's HTML error page
+      if (errorText.trim().startsWith('<!DOCTYPE') || errorText.trim().startsWith('<html')) {
+        console.error(`Received HTML error page instead of JSON. Status: ${response.status}`);
+        throw new Error(`Server returned HTML instead of JSON. Status: ${response.status}`);
+      }
+      
+      // Parse JSON error if possible
+      try {
+        const errorJson = JSON.parse(errorText);
+        throw new Error(errorJson.message || `API request failed with status ${response.status}`);
+      } catch (parseError) {
+        // If we can't parse as JSON, return the text
+        throw new Error(`API request failed: ${errorText.substring(0, 150)}...`);
+      }
+    }
+    
+    // Check if response is empty
+    const text = await response.text();
+    if (!text.trim()) {
+      throw new Error('API returned empty response');
+    }
+    
+    // Try to parse as JSON
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      console.error('Error parsing JSON:', error);
+      
+      // If it starts with HTML, log appropriate error
+      if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
+        throw new Error('Received HTML page instead of JSON. The API endpoint might be returning an error page.');
+      }
+      
+      throw new Error(`Failed to parse API response as JSON: ${text.substring(0, 150)}...`);
+    }
+  } catch (error) {
+    // Handle AbortController timeout
+    if (error.name === 'AbortError') {
+      throw new Error('API request timed out after 15 seconds');
+    }
+    
+    // Re-throw all other errors
+    throw error;
+  }
+}
+
+/**
  * Get stock aggregates (candlestick) data
  * @param {string} symbol - Stock symbol
  * @param {string} multiplier - Time multiplier (e.g., 1, 5, 15)
@@ -81,9 +164,8 @@ export const getStockAggregates = async (symbol, multiplier = 1, timespan = 'day
     const baseUrl = getBaseUrl();
     const url = `${baseUrl}/api/polygon-proxy/aggregates/${normalizedSymbol}/${multiplier}/${timespan}/${from}/${to}`;
     
-    // Make the request
-    const response = await fetch(url);
-    const data = await response.json();
+    // Make the request with enhanced fetch
+    const data = await enhancedFetch(url);
     
     if (!data.success) {
       throw new Error(data.message || 'Failed to fetch aggregate data');
@@ -92,6 +174,12 @@ export const getStockAggregates = async (symbol, multiplier = 1, timespan = 'day
     return data.data;
   } catch (error) {
     console.error(`Error fetching aggregates for ${symbol}:`, error);
+    
+    // Handle and rethrow the error
+    if (error.message.includes('HTML')) {
+      throw new Error(`Failed to fetch aggregates for ${symbol}: API returned error page. Verify symbol and date range.`);
+    }
+    
     throw error;
   }
 };
@@ -123,9 +211,8 @@ export const getDailyOpenClose = async (symbol, date) => {
     const baseUrl = getBaseUrl();
     const url = `${baseUrl}/api/polygon-proxy/daily-open-close/${normalizedSymbol}/${date}`;
     
-    // Make the request
-    const response = await fetch(url);
-    const data = await response.json();
+    // Make the request with enhanced fetch
+    const data = await enhancedFetch(url);
     
     if (!data.success) {
       throw new Error(data.message || 'Failed to fetch daily open/close data');
@@ -157,9 +244,8 @@ export const getPreviousClose = async (symbol) => {
     const baseUrl = getBaseUrl();
     const url = `${baseUrl}/api/polygon-proxy/previous-close/${normalizedSymbol}`;
     
-    // Make the request
-    const response = await fetch(url);
-    const data = await response.json();
+    // Make the request with enhanced fetch
+    const data = await enhancedFetch(url);
     
     if (!data.success) {
       throw new Error(data.message || 'Failed to fetch previous close data');
@@ -191,9 +277,8 @@ export const getTickerDetails = async (symbol) => {
     const baseUrl = getBaseUrl();
     const url = `${baseUrl}/api/polygon-proxy/ticker-details/${normalizedSymbol}`;
     
-    // Make the request
-    const response = await fetch(url);
-    const data = await response.json();
+    // Make the request with enhanced fetch
+    const data = await enhancedFetch(url);
     
     if (!data.success) {
       throw new Error(data.message || 'Failed to fetch ticker details');
@@ -225,9 +310,8 @@ export const getInsiderTransactions = async (symbol) => {
     const baseUrl = getBaseUrl();
     const url = `${baseUrl}/api/polygon-proxy/insider-transactions/${normalizedSymbol}`;
     
-    // Make the request
-    const response = await fetch(url);
-    const data = await response.json();
+    // Make the request with enhanced fetch
+    const data = await enhancedFetch(url);
     
     if (!data.success) {
       throw new Error(data.message || 'Failed to fetch insider transactions');
@@ -255,9 +339,8 @@ export const getMarketStatus = async () => {
     const baseUrl = getBaseUrl();
     const url = `${baseUrl}/api/polygon-proxy/market-status`;
     
-    // Make the request
-    const response = await fetch(url);
-    const data = await response.json();
+    // Make the request with enhanced fetch
+    const data = await enhancedFetch(url);
     
     if (!data.success) {
       throw new Error(data.message || 'Failed to fetch market status');
@@ -294,9 +377,8 @@ export const getTechnicalIndicators = async (symbol, indicator, params = {}) => 
     // Add additional parameters
     const queryParams = new URLSearchParams(params);
     
-    // Make the request
-    const response = await fetch(`${url}?${queryParams.toString()}`);
-    const data = await response.json();
+    // Make the request with enhanced fetch
+    const data = await enhancedFetch(`${url}?${queryParams.toString()}`);
     
     if (!data.success) {
       throw new Error(data.message || 'Failed to fetch technical indicators');
@@ -321,26 +403,68 @@ export const getComprehensiveStockData = async (symbol) => {
       throw new Error('Invalid Polygon.io API key. Please check your environment variables.');
     }
     
-    // Since we might hit rate limits or have other issues, use Promise.allSettled
-    // to get as much data as possible, even if some requests fail
-    const [aggregatesResult, tickerDetailsResult, insiderTransactionsResult] = await Promise.allSettled([
-      getStockAggregates(symbol),
-      getTickerDetails(symbol),
-      getInsiderTransactions(symbol),
-    ]);
-    
-    // Extract values or null for each result
-    const aggregatesData = aggregatesResult.status === 'fulfilled' ? aggregatesResult.value : null;
-    const tickerDetailsData = tickerDetailsResult.status === 'fulfilled' ? tickerDetailsResult.value : null;
-    const insiderTransactionsData = insiderTransactionsResult.status === 'fulfilled' ? insiderTransactionsResult.value : null;
-    
-    // Return whatever data we have
-    return {
+    // Create a fallback object for when API calls fail
+    const fallbackData = {
       symbol,
-      aggregatesData,
-      tickerDetailsData,
-      insiderTransactionsData,
+      aggregatesData: null,
+      tickerDetailsData: null,
+      insiderTransactionsData: null,
     };
+    
+    // Check if symbol is a market index or ETF (which may not have insider transactions)
+    const isEtfOrIndex = ['SPY', 'QQQ', 'DIA', 'IWM', 'VIX', 'XLK', 'XLF', 'XLV', 'XLE', 'XLY', 'XLP', 'XLI', 'XLB', 'XLU', 'XLRE'].includes(symbol.toUpperCase());
+    
+    try {
+      // Since we might hit rate limits or have other issues, use Promise.allSettled
+      // to get as much data as possible, even if some requests fail
+      const apiCalls = [
+        getStockAggregates(symbol).catch(err => {
+          console.error(`Error in getStockAggregates for ${symbol}:`, err);
+          return null;
+        }),
+        getTickerDetails(symbol).catch(err => {
+          console.error(`Error in getTickerDetails for ${symbol}:`, err);
+          return null;
+        })
+      ];
+      
+      // Only add insider transactions call for regular stocks (not ETFs or indices)
+      if (!isEtfOrIndex) {
+        apiCalls.push(
+          getInsiderTransactions(symbol).catch(err => {
+            console.error(`Error in getInsiderTransactions for ${symbol}:`, err);
+            return null;
+          })
+        );
+      } else {
+        // For ETFs and indices, just push null
+        console.log(`Skipping insider transactions for ETF/Index ${symbol}`);
+      }
+      
+      const results = await Promise.all(apiCalls);
+      
+      // Extract values
+      const aggregatesData = results[0];
+      const tickerDetailsData = results[1];
+      const insiderTransactionsData = results.length > 2 ? results[2] : null;
+      
+      // Return data or fallback to mock data if all APIs failed
+      if (!aggregatesData && !tickerDetailsData && !insiderTransactionsData) {
+        console.warn(`All API calls failed for ${symbol}, using fallback data`);
+        return fallbackData;
+      }
+      
+      // Return whatever data we have
+      return {
+        symbol,
+        aggregatesData,
+        tickerDetailsData,
+        insiderTransactionsData,
+      };
+    } catch (error) {
+      console.error(`Error in Promise.all for ${symbol}:`, error);
+      return fallbackData;
+    }
   } catch (error) {
     console.error(`Error fetching comprehensive data for ${symbol}:`, error);
     throw error;
