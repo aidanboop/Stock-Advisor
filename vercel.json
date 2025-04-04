@@ -1,5 +1,5 @@
 {
-  "buildCommand": "next build",
+  "buildCommand": "npm install --production=false && next build",
   "outputDirectory": ".next",
   "framework": "nextjs",
   "regions": ["iad1"],
