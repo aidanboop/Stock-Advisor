@@ -60,7 +60,7 @@ let lastCacheRefresh = null;
 const CACHE_EXPIRY_MS = 30 * 1000; // 30 seconds to match refresh interval
 
 // Control whether to use mock data
-let useMockData = false;
+let useMockData = true;
 
 /**
  * Toggle between real and mock data
