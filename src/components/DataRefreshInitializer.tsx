@@ -1,5 +1,5 @@
 /**
- * Component to initialize real-time data refresh on application startup
+ * Component to initialize end-of-day data refresh with incremental updates for stock data
  * Enhanced with error handling and toast notifications
  */
 
@@ -40,6 +40,7 @@ export default function DataRefreshInitializer() {
   useEffect(() => {
     try {
       // Start real-time refresh when component mounts (60 second intervals)
+      // This follows the new approach of refreshing one symbol at a time
       const refreshController = startRealTimeRefresh((result: RefreshResult) => {
         // Convert to EST for consistency
         const estTime = new Date().toLocaleString('en-US', {
@@ -55,7 +56,7 @@ export default function DataRefreshInitializer() {
           
           // Only show toast for manually triggered refreshes
           if (result.symbols && result.symbols.length > 0) {
-            console.log(`[${estTime}] Real-time data refresh completed for ${result.symbols.length} symbols`);
+            console.log(`[${estTime}] End-of-day data update completed for ${result.symbols.length} symbols`);
           }
         } 
         else if (result.status === 'rate_limited') {
@@ -74,13 +75,13 @@ export default function DataRefreshInitializer() {
         else if (result.status === 'error') {
           setStatus('error');
           setErrorCount(prev => prev + 1);
-          console.error(`[${estTime}] Real-time data refresh error: ${result.error}`);
+          console.error(`[${estTime}] Data refresh error: ${result.error}`);
           
           // Only show error toast if errors are persistent (3+ in a row)
           if (errorCount >= 2) {
             toast({
               title: "Data refresh error",
-              description: "Using cached data while resolving API connection issues",
+              description: "Using cached end-of-day data while resolving API connection issues",
               variant: "destructive",
             });
           }
@@ -98,7 +99,7 @@ export default function DataRefreshInitializer() {
         if (result.status === 'error') {
           toast({
             title: "Initial data fetch error",
-            description: "Using cached data. Will retry shortly.",
+            description: "Using cached end-of-day data. Will retry shortly.",
             variant: "destructive",
           });
         }
@@ -125,12 +126,12 @@ export default function DataRefreshInitializer() {
         clearInterval(statusInterval);
       };
     } catch (error) {
-      console.error('Failed to initialize real-time data refresh:', error);
+      console.error('Failed to initialize end-of-day data refresh:', error);
       setStatus('error');
       
       toast({
         title: "Data refresh initialization failed",
-        description: "Please refresh the page or try again later.",
+        description: "Please refresh the page to attempt reloading end-of-day data.",
         variant: "destructive",
       });
       
@@ -139,8 +140,6 @@ export default function DataRefreshInitializer() {
     }
   }, [toast, errorCount]);
 
-  // Expose manual refresh function to parent if needed via React Context
-  
   // This component doesn't render anything visible
   return null;
 }
