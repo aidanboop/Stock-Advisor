@@ -1,3 +1,4 @@
+// src/app/page.js
 import { getTopRecommendations, getMarketOverview } from '../lib/utils/stockData';
 
 export const dynamic = 'force-dynamic';
@@ -17,13 +18,16 @@ export default async function Home() {
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <header className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Aidans Stock Advisor</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Aidan's Stock Advisor</h1>
           <p className="text-gray-500 mt-2">
-            Real-time stock recommendations updated every 30 seconds
+            End-of-day stock analysis with incremental data updates
           </p>
           <p className="text-sm text-gray-400">
             Last updated: {new Date().toLocaleString('en-US', {timeZone: 'America/New_York'})} EST
           </p>
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md text-blue-700 text-sm">
+            <p><strong>About our data:</strong> Stock recommendations are based on end-of-day data, with symbols updated incrementally throughout the day to maintain API rate limits. Each symbol is analyzed one at a time in rotation to provide updated insights while respecting API constraints.</p>
+          </div>
         </header>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -62,7 +66,7 @@ export default async function Home() {
                           {stock.metadata?.price ? `$${stock.metadata.price.toFixed(2)}` : 'N/A'}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {stock.metadata?.exchange || 'US Exchange'} • Last updated: {new Date(stock.lastUpdated).toLocaleString('en-US', {timeZone: 'America/New_York'})} EST
+                          {stock.metadata?.exchange || 'US Exchange'} • End-of-day data
                         </div>
                       </div>
                     </div>
@@ -160,7 +164,7 @@ export default async function Home() {
                           {stock.metadata?.price ? `$${stock.metadata.price.toFixed(2)}` : 'N/A'}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {stock.metadata?.exchange || 'US Exchange'}
+                          {stock.metadata?.exchange || 'US Exchange'} • End-of-day data
                         </div>
                       </div>
                     </div>
