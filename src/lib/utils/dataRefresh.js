@@ -1,16 +1,10 @@
-/**
- * Real-time data refresh functionality with rate limiting
- */
-
 import { fetchMultipleStocks, TECH_STOCKS, SECTORS, STOCK_INDICES } from './stockData';
 
-// Track the refresh interval
 let refreshInterval = null;
-
-// Track API calls to prevent rate limiting
 let apiCallsInLastMinute = 0;
 let lastApiCallReset = Date.now();
-const MAX_CALLS_PER_MINUTE = 5; // Conservative limit for free Polygon.io tier
+const MAX_CALLS_PER_MINUTE = 5; 
+const REFRESH_INTERVAL = 60000;
 
 /**
  * Get current time in EST formatted string
@@ -40,16 +34,24 @@ const canMakeApiCall = () => {
     lastApiCallReset = now;
   }
   
-  // Check if we're under the limit
   return apiCallsInLastMinute < MAX_CALLS_PER_MINUTE;
 };
 
-/**
- * Record an API call
- */
 const recordApiCall = () => {
   apiCallsInLastMinute++;
 };
+
+let currentCycleIndex = 0;
+function getSymbolsForCurrentCycle() {
+  const allSymbols = [...STOCK_INDICES, ...TECH_STOCKS, ...SECTORS];
+  
+  const symbolsToRefresh = [allSymbols[currentCycleIndex % allSymbols.length]];
+  
+  // Move to next symbol for next cycle
+  currentCycleIndex++;
+  
+  return symbolsToRefresh;
+}
 
 /**
  * Start real-time data refresh with rate limiting
@@ -87,23 +89,14 @@ export const startRealTimeRefresh = (onRefresh, intervalSeconds = 60) => {
       // Record the API call
       recordApiCall();
       
-      // Split symbols into smaller batches for better rate limiting
-      // Only refresh indices and a subset of stocks each time
-      const allSymbols = [...STOCK_INDICES]; // Always refresh indices
-      
-      // Alternate between tech stocks and sectors
-      const isEvenMinute = Math.floor(Date.now() / 60000) % 2 === 0;
-      const additionalSymbols = isEvenMinute ? 
-        TECH_STOCKS.slice(0, 5) : // First 5 tech stocks on even minutes
-        [...SECTORS.slice(0, 3), ...TECH_STOCKS.slice(5, 7)]; // Sectors and more tech stocks on odd minutes
-      
-      // Combine symbols for this refresh
-      const symbolsToRefresh = [...allSymbols, ...additionalSymbols];
+      // IMPORTANT: Reduce the number of symbols to refresh in each batch
+      // Only refresh 1-2 symbols at a time to stay within rate limits
+      const symbolsToRefresh = getSymbolsForCurrentCycle();
       
       // Force refresh of selected data
       await fetchMultipleStocks(symbolsToRefresh, true);
       
-      console.log(`[${getEstTimeString()} EST] Data refresh completed successfully`);
+      console.log(`[${getEstTimeString()} EST] Data refresh completed successfully for ${symbolsToRefresh.join(', ')}`);
       
       // Execute callback if provided
       if (typeof onRefresh === 'function') {
