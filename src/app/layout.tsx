@@ -1,3 +1,6 @@
+// src/app/layout.tsx
+// Adding "end of day" language to inform users about data timing
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -84,12 +87,12 @@ export default function RootLayout({ children }: Readonly<{
             <div className="flex justify-between items-center">
               <div>
                 <h1 className="text-2xl font-bold">
-                  <a href="/" className="hover:text-blue-100">Aidan's Stock Helper.</a>
+                  <a href="/" className="hover:text-blue-100">Aidan's Stock Helper</a>
                 </h1>
-                <p className="text-blue-100 text-sm">Real-time stock recommendations</p>
+                <p className="text-blue-100 text-sm">End-of-day stock analysis with gradual data updates</p>
               </div>
               <div className="text-right text-sm">
-                <div>Time updates (EST)</div>
+                <div>Eastern Time (EST)</div>
                 <div className="text-blue-100 font-medium">
                   Current time: {currentEstTime}
                 </div>
@@ -120,7 +123,7 @@ export default function RootLayout({ children }: Readonly<{
                 Data provided by Polygon.io API. This application is for educational purposes only.
               </p>
               <p className="mt-1">
-                Recommendations are based on technical indicators and insider trading analysis.
+                End-of-day analysis based on technical indicators and insider trading data.
               </p>
             </div>
           </div>
