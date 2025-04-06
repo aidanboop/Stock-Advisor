@@ -1,6 +1,6 @@
 /**
  * Mock data for stock recommendations to use as fallback when API calls fail
- * Place this file at: src/lib/utils/mockData.js
+ * Updated with April 2025 market conditions
  */
 
 // Mock tech stock recommendations
@@ -8,127 +8,132 @@ export const mockTechRecommendations = [
   {
     symbol: 'AAPL',
     name: 'Apple Inc.',
-    recommendation: 'STRONG_BUY',
-    score: 82,
+    recommendation: 'HOLD',
+    score: 58,
     keyReasons: [
-      'Positive short-term outlook',
-      'Strong earnings growth',
-      'High institutional ownership',
-      'New product launches expected',
-      'Trading above 50-day moving average'
+      'Tariff impact on China manufacturing',
+      'Potential for higher iPhone prices',
+      'Strong cash position',
+      'Solid product ecosystem',
+      'Trading near technical support levels'
     ],
     analysis: {
-      technical: { score: 85 },
-      insider: { score: 78 },
+      technical: { score: 52 },
+      insider: { score: 67 },
       price: { 
-        score: 84,
-        dailyChange: 1.23
+        score: 55,
+        dailyChange: -7.30
       }
     },
     metadata: {
-      price: 182.52,
+      price: 205.09,
       exchange: 'NASDAQ'
-    }
+    },
+    lastUpdated: new Date().toISOString()
   },
   {
     symbol: 'MSFT',
     name: 'Microsoft Corporation',
     recommendation: 'BUY',
-    score: 76,
+    score: 72,
     keyReasons: [
-      'Cloud revenue growth',
-      'AI integration across product lines',
-      'Strong balance sheet',
-      'Dividend growth',
-      'Positive technical indicators'
+      'Cloud business resilience',
+      'Strong AI integration',
+      'Lower tariff exposure than peers',
+      'Solid dividend growth',
+      'Better positioned for economic uncertainty'
     ],
     analysis: {
-      technical: { score: 72 },
-      insider: { score: 81 },
+      technical: { score: 68 },
+      insider: { score: 74 },
       price: { 
-        score: 75,
-        dailyChange: 0.87
+        score: 73,
+        dailyChange: -3.60
       }
     },
     metadata: {
-      price: 415.63,
+      price: 397.41,
       exchange: 'NASDAQ'
-    }
+    },
+    lastUpdated: new Date().toISOString()
   },
   {
     symbol: 'NVDA',
     name: 'NVIDIA Corporation',
-    recommendation: 'STRONG_BUY',
-    score: 88,
+    recommendation: 'HOLD',
+    score: 65,
     keyReasons: [
-      'Leading AI chip provider',
-      'Strong revenue growth',
-      'Increased institutional buying',
-      'Positive momentum',
-      'Industry-leading position'
+      'AI chip demand remains strong',
+      'Tariff and trade war concerns',
+      'Potential supply chain disruptions',
+      'Trading at elevated valuations',
+      'Recent stock split completed'
     ],
     analysis: {
-      technical: { score: 92 },
-      insider: { score: 80 },
+      technical: { score: 61 },
+      insider: { score: 72 },
       price: { 
-        score: 85,
-        dailyChange: 2.14
+        score: 63,
+        dailyChange: -7.50
       }
     },
     metadata: {
-      price: 892.16,
+      price: 93.42,
       exchange: 'NASDAQ'
-    }
+    },
+    lastUpdated: new Date().toISOString()
   },
   {
     symbol: 'AMD',
     name: 'Advanced Micro Devices, Inc.',
     recommendation: 'BUY',
-    score: 74,
+    score: 71,
     keyReasons: [
       'Server market share gains',
-      'Competitive chip performance',
-      'Positive analyst revisions',
       'AI acceleration products',
-      'Strong technical setup'
+      'Lower China exposure than peers',
+      'Competitive chip performance',
+      'Reasonable valuation metrics'
     ],
     analysis: {
-      technical: { score: 77 },
-      insider: { score: 68 },
+      technical: { score: 67 },
+      insider: { score: 76 },
       price: { 
-        score: 75,
-        dailyChange: 1.56
+        score: 71,
+        dailyChange: -6.20
       }
     },
     metadata: {
-      price: 166.40,
+      price: 157.83,
       exchange: 'NASDAQ'
-    }
+    },
+    lastUpdated: new Date().toISOString()
   },
   {
     symbol: 'GOOGL',
     name: 'Alphabet Inc.',
     recommendation: 'BUY',
-    score: 72,
+    score: 69,
     keyReasons: [
       'Search dominance',
       'YouTube growth',
-      'AI integration',
-      'Cloud revenue expansion',
+      'Diversified revenue streams',
+      'Lower trade war impact',
       'Reasonable valuation'
     ],
     analysis: {
-      technical: { score: 68 },
-      insider: { score: 76 },
+      technical: { score: 64 },
+      insider: { score: 73 },
       price: { 
         score: 70,
-        dailyChange: 0.52
+        dailyChange: -4.50
       }
     },
     metadata: {
-      price: 154.85,
+      price: 147.85,
       exchange: 'NASDAQ'
-    }
+    },
+    lastUpdated: new Date().toISOString()
   }
 ];
 
@@ -138,77 +143,80 @@ export const mockAllRecommendations = [
   {
     symbol: 'JPM',
     name: 'JPMorgan Chase & Co.',
-    recommendation: 'BUY',
-    score: 75,
+    recommendation: 'HOLD',
+    score: 60,
     keyReasons: [
-      'Interest rate environment',
-      'Strong balance sheet',
-      'Dividend growth',
-      'Trading operations',
-      'Investment banking recovery'
+      'Financial market uncertainty',
+      'Potential recession concerns',
+      'Solid balance sheet',
+      'Dividend growth potential',
+      'Trading operations volatility'
     ],
     analysis: {
-      technical: { score: 70 },
-      insider: { score: 79 },
+      technical: { score: 53 },
+      insider: { score: 64 },
       price: { 
-        score: 77,
-        dailyChange: 0.94
+        score: 63,
+        dailyChange: -5.80
       }
     },
     metadata: {
-      price: 186.37,
+      price: 175.24,
       exchange: 'NYSE'
-    }
+    },
+    lastUpdated: new Date().toISOString()
   },
   {
     symbol: 'JNJ',
     name: 'Johnson & Johnson',
     recommendation: 'BUY',
-    score: 73,
+    score: 67,
     keyReasons: [
-      'Defensive stock',
+      'Defensive stock in market uncertainty',
       'Stable dividend',
+      'Lower tariff exposure',
       'Healthcare sector stability',
-      'Product pipeline',
-      'Litigation resolutions'
+      'Recent product portfolio improvements'
     ],
     analysis: {
-      technical: { score: 68 },
-      insider: { score: 78 },
+      technical: { score: 62 },
+      insider: { score: 68 },
       price: { 
-        score: 74,
-        dailyChange: 0.32
+        score: 67,
+        dailyChange: -2.10
       }
     },
     metadata: {
-      price: 152.88,
+      price: 148.76,
       exchange: 'NYSE'
-    }
+    },
+    lastUpdated: new Date().toISOString()
   },
   {
-    symbol: 'PG',
-    name: 'Procter & Gamble Co.',
-    recommendation: 'BUY',
-    score: 71,
+    symbol: 'META',
+    name: 'Meta Platforms, Inc.',
+    recommendation: 'HOLD',
+    score: 63,
     keyReasons: [
-      'Consumer staples leader',
-      'Pricing power',
-      'Stable cash flow',
-      'Dividend aristocrat',
-      'Global brand strength'
+      'Digital advertising resilience',
+      'Metaverse investment concerns',
+      'Regulatory scrutiny ongoing',
+      'Cost-cutting measures',
+      'Trade war indirect effects'
     ],
     analysis: {
-      technical: { score: 65 },
-      insider: { score: 77 },
+      technical: { score: 59 },
+      insider: { score: 65 },
       price: { 
-        score: 73,
-        dailyChange: 0.18
+        score: 64,
+        dailyChange: -6.40
       }
     },
     metadata: {
-      price: 166.92,
-      exchange: 'NYSE'
-    }
+      price: 487.32,
+      exchange: 'NASDAQ'
+    },
+    lastUpdated: new Date().toISOString()
   }
 ];
 
@@ -216,66 +224,66 @@ export const mockAllRecommendations = [
 export const mockMarketOverview = {
   indices: [
     {
-      symbol: '^GSPC',
+      symbol: 'SPY',
       name: 'S&P 500',
-      metadata: { price: 5116.17 },
-      analysis: { price: { dailyChange: 0.74 } }
+      metadata: { price: 507.41 },
+      analysis: { price: { dailyChange: -5.97 } }
     },
     {
-      symbol: '^DJI',
+      symbol: 'DIA',
       name: 'Dow Jones Industrial Average',
-      metadata: { price: 38143.33 },
-      analysis: { price: { dailyChange: 0.56 } }
+      metadata: { price: 383.15 },
+      analysis: { price: { dailyChange: -5.50 } }
     },
     {
-      symbol: '^IXIC',
-      name: 'NASDAQ Composite',
-      metadata: { price: 16275.37 },
-      analysis: { price: { dailyChange: 1.14 } }
+      symbol: 'QQQ',
+      name: 'NASDAQ-100',
+      metadata: { price: 399.54 },
+      analysis: { price: { dailyChange: -6.20 } }
     },
     {
-      symbol: '^RUT',
+      symbol: 'IWM',
       name: 'Russell 2000',
-      metadata: { price: 2053.14 },
-      analysis: { price: { dailyChange: 0.82 } }
+      metadata: { price: 187.42 },
+      analysis: { price: { dailyChange: -7.30 } }
     },
     {
-      symbol: '^VIX',
+      symbol: 'VIX',
       name: 'CBOE Volatility Index',
-      metadata: { price: 15.47 },
-      analysis: { price: { dailyChange: -3.25 } }
+      metadata: { price: 32.75 },
+      analysis: { price: { dailyChange: 48.35 } }
     }
   ],
   sectors: [
     {
       symbol: 'XLK',
       name: 'Technology',
-      metadata: { price: 212.45 },
-      analysis: { price: { dailyChange: 1.37 } }
+      metadata: { price: 196.73 },
+      analysis: { price: { dailyChange: -6.45 } }
     },
     {
       symbol: 'XLF',
       name: 'Financial',
-      metadata: { price: 40.13 },
-      analysis: { price: { dailyChange: 0.82 } }
+      metadata: { price: 37.82 },
+      analysis: { price: { dailyChange: -5.98 } }
     },
     {
       symbol: 'XLV',
       name: 'Healthcare',
-      metadata: { price: 150.28 },
-      analysis: { price: { dailyChange: 0.41 } }
+      metadata: { price: 146.57 },
+      analysis: { price: { dailyChange: -3.82 } }
     },
     {
       symbol: 'XLE',
       name: 'Energy',
-      metadata: { price: 93.16 },
-      analysis: { price: { dailyChange: -0.28 } }
+      metadata: { price: 86.45 },
+      analysis: { price: { dailyChange: -8.60 } }
     },
     {
       symbol: 'XLY',
       name: 'Consumer Discretionary',
-      metadata: { price: 186.57 },
-      analysis: { price: { dailyChange: 0.93 } }
+      metadata: { price: 172.36 },
+      analysis: { price: { dailyChange: -7.15 } }
     }
   ],
   lastUpdated: new Date().toISOString()
