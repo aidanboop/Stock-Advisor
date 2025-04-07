@@ -55,7 +55,7 @@ export default async function Home() {
         <header className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Stock Advisor</h1>
           <p className="text-gray-500 mt-2">
-            Real-time stock recommendations updated every 30 seconds.
+            Real-time stock recommendations updated every 30 minutes.
           </p>
           <p className="text-sm text-gray-400">
           Last updated: {new Date().toLocaleString('en-US', {timeZone: 'America/New_York'})} EST
