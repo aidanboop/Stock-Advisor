@@ -1,9 +1,13 @@
 /**
  * Stock data management utilities using Polygon.io API
- * Enhanced with better fallback mechanisms
+ * Updated to work with official Polygon.io client library responses
  */
 
-import { getComprehensiveStockData } from '../api/polygonClient';
+import {
+  getComprehensiveStockData,
+  getStockAggregates,
+  getMarketStatus
+} from '../api/polygonClient';
 import { generateBuyRecommendation } from './stockAnalysis';
 import { mockTechRecommendations, mockAllRecommendations, mockMarketOverview } from './mockData';
 
@@ -60,7 +64,7 @@ let lastCacheRefresh = null;
 const CACHE_EXPIRY_MS = 30 * 1000; // 30 seconds to match refresh interval
 
 // Control whether to use mock data
-let useMockData = true;
+let useMockData = process.env.NODE_ENV === 'development';
 
 /**
  * Toggle between real and mock data
@@ -90,36 +94,36 @@ const getDataWithFallback = async (symbol) => {
     const mockStock = getMockStockData(symbol);
     if (mockStock) return mockStock;
   }
-  
+
   try {
     // Try to fetch real data from API
     const stockData = await getComprehensiveStockData(symbol);
-    
+
     // Check if we got any actual data back
     const hasData = stockData && (
-      stockData.aggregatesData || 
-      stockData.tickerDetailsData || 
-      stockData.insiderTransactionsData
+        stockData.aggregatesData ||
+        stockData.tickerDetailsData ||
+        stockData.insiderTransactionsData
     );
-    
+
     // If we didn't get any data, fall back to mock
     if (!hasData) {
       console.warn(`No data returned for ${symbol}, falling back to mock data`);
       const mockStock = getMockStockData(symbol);
       if (mockStock) return mockStock;
     }
-    
+
     // Generate recommendation from whatever data we have
     const recommendation = generateBuyRecommendation(stockData);
-    
+
     return recommendation;
   } catch (error) {
     console.error(`API error for ${symbol}, falling back to mock data:`, error);
-    
+
     // Fall back to mock data
     const mockStock = getMockStockData(symbol);
     if (mockStock) return mockStock;
-    
+
     // If no mock data available, return minimal data
     return createMinimalStockData(symbol);
   }
@@ -175,7 +179,7 @@ const getReadableName = (symbol) => {
     'XLU': 'Utilities Sector ETF',
     'XLRE': 'Real Estate Sector ETF'
   };
-  
+
   // Common stocks
   const stockNames = {
     'AAPL': 'Apple Inc.',
@@ -199,15 +203,15 @@ const getReadableName = (symbol) => {
     'MU': 'Micron Technology Inc.',
     'AMAT': 'Applied Materials Inc.'
   };
-  
+
   // Check ETF/index first, then stock
   const name = etfNames[symbol] || stockNames[symbol];
-  
+
   // If we don't have a name, generate one
   if (!name) {
     return `${symbol} Inc.`;
   }
-  
+
   return name;
 };
 
@@ -219,23 +223,23 @@ const getReadableName = (symbol) => {
 const getMockStockData = (symbol) => {
   // Find in mock data
   const mockStock = [...mockTechRecommendations, ...mockAllRecommendations].find(
-    stock => stock.symbol === symbol
+      stock => stock.symbol === symbol
   );
-  
+
   if (mockStock) return mockStock;
-  
+
   // For indices
   if (STOCK_INDICES.includes(symbol)) {
     const mockIndex = mockMarketOverview.indices.find(i => i.symbol === symbol);
     if (mockIndex) return mockIndex;
   }
-  
+
   // For sectors
   if (SECTORS.includes(symbol)) {
     const mockSector = mockMarketOverview.sectors.find(s => s.symbol === symbol);
     if (mockSector) return mockSector;
   }
-  
+
   // Generic mock data for unknown symbols
   return {
     symbol,
@@ -266,35 +270,35 @@ const getMockStockData = (symbol) => {
 export const fetchStockData = async (symbol, forceRefresh = false) => {
   const now = new Date();
   const cacheKey = symbol.toUpperCase();
-  
+
   // Check if we have valid cached data
   if (
-    !forceRefresh && 
-    stockDataCache[cacheKey] && 
-    lastCacheRefresh && 
-    (now.getTime() - lastCacheRefresh.getTime() < CACHE_EXPIRY_MS)
+      !forceRefresh &&
+      stockDataCache[cacheKey] &&
+      lastCacheRefresh &&
+      (now.getTime() - lastCacheRefresh.getTime() < CACHE_EXPIRY_MS)
   ) {
     return stockDataCache[cacheKey];
   }
-  
+
   try {
     // Get data with fallback
     const stockData = await getDataWithFallback(symbol);
-    
+
     // Update cache
     stockDataCache[cacheKey] = stockData;
     lastCacheRefresh = now;
-    
+
     return stockData;
   } catch (error) {
     console.error(`Failed to fetch data for ${symbol}:`, error);
-    
+
     // Try to return cached data even if expired
     if (stockDataCache[cacheKey]) {
       console.warn(`Returning expired cached data for ${symbol}`);
       return stockDataCache[cacheKey];
     }
-    
+
     // Last resort: return mock data
     return getMockStockData(symbol);
   }
@@ -311,33 +315,33 @@ export const fetchMultipleStocks = async (symbols, forceRefresh = false) => {
     // Process in batches to avoid overwhelming the API
     const batchSize = 3; // Reduced batch size to avoid rate limits
     const results = [];
-    
+
     for (let i = 0; i < symbols.length; i += batchSize) {
       const batch = symbols.slice(i, i + batchSize);
-      
-      // Use Promise.all instead of allSettled to catch individual errors
-      const batchPromises = batch.map(symbol => 
-        fetchStockData(symbol, forceRefresh)
-          .catch(error => {
-            console.error(`Error fetching data for ${symbol}:`, error);
-            // Return mock data on error
-            return getMockStockData(symbol);
-          })
+
+      // Use Promise.all to catch individual errors
+      const batchPromises = batch.map(symbol =>
+          fetchStockData(symbol, forceRefresh)
+              .catch(error => {
+                console.error(`Error fetching data for ${symbol}:`, error);
+                // Return mock data on error
+                return getMockStockData(symbol);
+              })
       );
-      
+
       const batchResults = await Promise.all(batchPromises);
       results.push(...batchResults);
-      
+
       // Add a larger delay between batches to avoid rate limiting
       if (i + batchSize < symbols.length) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
-    
+
     return results;
   } catch (error) {
     console.error('Error fetching multiple stocks:', error);
-    
+
     // Handle different fallbacks based on what we're fetching
     if (symbols.some(symbol => STOCK_INDICES.includes(symbol))) {
       // If fetching indices, return mock indices
@@ -365,37 +369,37 @@ export const getTopRecommendations = async (limit = 5, techOnly = false) => {
   try {
     // If using mock data, return it directly
     if (useMockData) {
-      return techOnly 
-        ? mockTechRecommendations.slice(0, limit)
-        : mockAllRecommendations.slice(0, limit);
+      return techOnly
+          ? mockTechRecommendations.slice(0, limit)
+          : mockAllRecommendations.slice(0, limit);
     }
-    
+
     // Determine which stocks to analyze
     const symbolsToAnalyze = techOnly ? TECH_STOCKS.slice(0, 10) : [...TECH_STOCKS.slice(0, 5), ...SECTORS.slice(0, 5)];
-    
+
     // Fetch data for all stocks
     const stockData = await fetchMultipleStocks(symbolsToAnalyze);
-    
+
     // Sort by recommendation score (highest first)
     const sortedStocks = stockData.sort((a, b) => b.score - a.score);
-    
+
     // Filter to only include BUY or STRONG_BUY recommendations
-    const buyRecommendations = sortedStocks.filter(stock => 
-      stock.recommendation === 'BUY' || stock.recommendation === 'STRONG_BUY'
+    const buyRecommendations = sortedStocks.filter(stock =>
+        stock.recommendation === 'BUY' || stock.recommendation === 'STRONG_BUY'
     );
-    
+
     // Return top N recommendations or all recommendations if fewer than limit
     return buyRecommendations.length > 0
-      ? buyRecommendations.slice(0, limit)
-      : sortedStocks.slice(0, limit); // If no BUY recommendations, return the highest scored stocks
+        ? buyRecommendations.slice(0, limit)
+        : sortedStocks.slice(0, limit); // If no BUY recommendations, return the highest scored stocks
   } catch (error) {
     console.error('Error getting top recommendations:', error);
-    
+
     // Fall back to mock data
     console.warn('Falling back to mock data for recommendations');
-    return techOnly 
-      ? mockTechRecommendations.slice(0, limit)
-      : mockAllRecommendations.slice(0, limit);
+    return techOnly
+        ? mockTechRecommendations.slice(0, limit)
+        : mockAllRecommendations.slice(0, limit);
   }
 };
 
@@ -412,26 +416,60 @@ export const getMarketOverview = async () => {
         lastUpdated: new Date().toISOString()
       };
     }
-    
+
+    // Get market status
+    const marketStatus = await getMarketStatus();
+
     // Fetch data for major indices (use a subset to avoid rate limits)
     const indicesData = await fetchMultipleStocks(STOCK_INDICES.slice(0, 3));
-    
+
     // Fetch data for major sectors (use a subset to avoid rate limits)
     const sectorsData = await fetchMultipleStocks(SECTORS.slice(0, 5));
-    
+
     return {
+      marketStatus,
       indices: indicesData,
       sectors: sectorsData,
       lastUpdated: new Date().toISOString()
     };
   } catch (error) {
     console.error('Error getting market overview:', error);
-    
+
     // Fall back to mock data
     console.warn('Falling back to mock data for market overview');
     return {
       ...mockMarketOverview,
       lastUpdated: new Date().toISOString()
     };
+  }
+};
+
+/**
+ * Check if market is currently open
+ * @returns {Promise<boolean>} Whether market is open
+ */
+export const isMarketOpen = async () => {
+  try {
+    const status = await getMarketStatus();
+    return status.market === 'open';
+  } catch (error) {
+    console.error('Error checking market status:', error);
+
+    // Default to US market hours check
+    const now = new Date();
+    const day = now.getDay(); // 0 is Sunday, 6 is Saturday
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+
+    // Check if weekend
+    if (day === 0 || day === 6) return false;
+
+    // Check if within market hours (9:30 AM - 4:00 PM EST)
+    // This is a simplified check and doesn't account for holidays
+    const estHour = (hour + 12) % 24; // Rough EST conversion
+    if (estHour < 9 || estHour >= 16) return false;
+    if (estHour === 9 && minute < 30) return false;
+
+    return true;
   }
 };
