@@ -24,18 +24,18 @@ export const validateApiKey = () => {
     console.error('POLYGON_API_KEY is not defined in environment variables');
     return false;
   }
-
+  
   if (POLYGON_API_KEY === 'your_polygon_api_key_here') {
     console.error('POLYGON_API_KEY is set to the example value. Please set a valid API key.');
     return false;
   }
-
+  
   // Basic format validation (Polygon keys are typically alphanumeric)
   if (!/^[a-zA-Z0-9_]+$/.test(POLYGON_API_KEY)) {
     console.error('POLYGON_API_KEY appears to be in an invalid format');
     return false;
   }
-
+  
   return true;
 };
 
@@ -55,17 +55,17 @@ const callWithCache = async (apiCall, cacheKey, forceRefresh = false) => {
     }
     responseCache.delete(cacheKey);
   }
-
+  
   try {
     // Call the API
     const response = await apiCall();
-
+    
     // Store in cache with expiry
     responseCache.set(cacheKey, {
       data: response,
       expiry: Date.now() + CACHE_TTL
     });
-
+    
     return response;
   } catch (error) {
     console.error(`Polygon API error for ${cacheKey}:`, error);
@@ -90,14 +90,14 @@ export const getStockAggregates = async (symbol, options = {}, forceRefresh = fa
     sort: 'asc',
     limit: 120
   };
-
+  
   const params = { ...defaultOptions, ...options };
   const cacheKey = `aggs-${symbol}-${params.multiplier}-${params.timespan}-${params.from}-${params.to}`;
-
+  
   return callWithCache(
-      () => polygonClient.stocks.aggregates(symbol, params.multiplier, params.timespan, params.from, params.to, params),
-      cacheKey,
-      forceRefresh
+    () => polygonClient.stocks.aggregates(symbol, params.multiplier, params.timespan, params.from, params.to, params),
+    cacheKey,
+    forceRefresh
   );
 };
 
@@ -109,11 +109,11 @@ export const getStockAggregates = async (symbol, options = {}, forceRefresh = fa
  */
 export const getPreviousClose = async (symbol, forceRefresh = false) => {
   const cacheKey = `prevclose-${symbol}`;
-
+  
   return callWithCache(
-      () => polygonClient.stocks.previousClose(symbol),
-      cacheKey,
-      forceRefresh
+    () => polygonClient.stocks.previousClose(symbol),
+    cacheKey,
+    forceRefresh
   );
 };
 
@@ -125,11 +125,11 @@ export const getPreviousClose = async (symbol, forceRefresh = false) => {
  */
 export const getTickerDetails = async (symbol, forceRefresh = false) => {
   const cacheKey = `ticker-${symbol}`;
-
+  
   return callWithCache(
-      () => polygonClient.reference.tickerDetails(symbol),
-      cacheKey,
-      forceRefresh
+    () => polygonClient.reference.tickers({ticker: symbol}),
+    cacheKey,
+    forceRefresh
   );
 };
 
@@ -141,11 +141,23 @@ export const getTickerDetails = async (symbol, forceRefresh = false) => {
  */
 export const getInsiderTransactions = async (symbol, forceRefresh = false) => {
   const cacheKey = `insider-${symbol}`;
-
+  
+  // Since insider transactions isn't directly available in the client, 
+  // we'll use the REST API endpoint manually
   return callWithCache(
-      () => polygonClient.reference.stockInsiderTransactions({ ticker: symbol, limit: 50 }),
-      cacheKey,
-      forceRefresh
+    async () => {
+      const response = await fetch(
+        `https://api.polygon.io/v2/reference/insiders/${symbol}?apiKey=${POLYGON_API_KEY}`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      return response.json();
+    },
+    cacheKey,
+    forceRefresh
   );
 };
 
@@ -156,11 +168,11 @@ export const getInsiderTransactions = async (symbol, forceRefresh = false) => {
  */
 export const getMarketStatus = async (forceRefresh = false) => {
   const cacheKey = 'market-status';
-
+  
   return callWithCache(
-      () => polygonClient.reference.marketStatus(),
-      cacheKey,
-      forceRefresh
+    () => polygonClient.reference.marketStatus(),
+    cacheKey,
+    forceRefresh
   );
 };
 
@@ -181,30 +193,36 @@ export const getTechnicalIndicators = async (symbol, indicator = 'sma', params =
     window: 14,
     series_type: 'close'
   };
-
+  
   const finalParams = { ...defaultParams, ...params, stockTicker: symbol };
   const cacheKey = `indicator-${symbol}-${indicator}-${JSON.stringify(finalParams)}`;
-
-  // Map to the corresponding indicator method
-  let apiCall;
-  switch (indicator.toLowerCase()) {
-    case 'sma':
-      apiCall = () => polygonClient.indicators.sma(finalParams);
-      break;
-    case 'ema':
-      apiCall = () => polygonClient.indicators.ema(finalParams);
-      break;
-    case 'rsi':
-      apiCall = () => polygonClient.indicators.rsi(finalParams);
-      break;
-    case 'macd':
-      apiCall = () => polygonClient.indicators.macd(finalParams);
-      break;
-    default:
-      throw new Error(`Unsupported indicator: ${indicator}`);
-  }
-
-  return callWithCache(apiCall, cacheKey, forceRefresh);
+  
+  // Since the technical indicators aren't directly available in the client,
+  // we'll use the REST API endpoints manually
+  return callWithCache(
+    async () => {
+      const baseUrl = `https://api.polygon.io/v1/indicators/${indicator.toLowerCase()}/${symbol}`;
+      
+      const queryParams = new URLSearchParams();
+      Object.entries(finalParams).forEach(([key, value]) => {
+        if (key !== 'stockTicker') {
+          queryParams.append(key, value);
+        }
+      });
+      
+      queryParams.append('apiKey', POLYGON_API_KEY);
+      
+      const response = await fetch(`${baseUrl}?${queryParams.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      return response.json();
+    },
+    cacheKey,
+    forceRefresh
+  );
 };
 
 /**
@@ -217,7 +235,7 @@ export const getComprehensiveStockData = async (symbol, forceRefresh = false) =>
   try {
     // Check if symbol is a market index or ETF (which may not have insider transactions)
     const isEtfOrIndex = ['SPY', 'QQQ', 'DIA', 'IWM', 'VIX', 'XLK', 'XLF', 'XLV', 'XLE', 'XLY', 'XLP', 'XLI', 'XLB', 'XLU', 'XLRE'].includes(symbol.toUpperCase());
-
+    
     // Use Promise.allSettled to get as much data as possible, even if some calls fail
     const apiCalls = [
       getStockAggregates(symbol, {}, forceRefresh).catch(err => {
@@ -229,33 +247,33 @@ export const getComprehensiveStockData = async (symbol, forceRefresh = false) =>
         return null;
       })
     ];
-
+    
     // Only add insider transactions call for regular stocks (not ETFs or indices)
     if (!isEtfOrIndex) {
       apiCalls.push(
-          getInsiderTransactions(symbol, forceRefresh).catch(err => {
-            console.error(`Error fetching insider transactions for ${symbol}:`, err);
-            return null;
-          })
-      );
-    }
-
-    // Add a technical indicator call (SMA)
-    apiCalls.push(
-        getTechnicalIndicators(symbol, 'sma', { window: 20 }, forceRefresh).catch(err => {
-          console.error(`Error fetching SMA indicator for ${symbol}:`, err);
+        getInsiderTransactions(symbol, forceRefresh).catch(err => {
+          console.error(`Error fetching insider transactions for ${symbol}:`, err);
           return null;
         })
+      );
+    }
+    
+    // Add a technical indicator call (SMA)
+    apiCalls.push(
+      getTechnicalIndicators(symbol, 'sma', { window: 20 }, forceRefresh).catch(err => {
+        console.error(`Error fetching SMA indicator for ${symbol}:`, err);
+        return null;
+      })
     );
-
+    
     const results = await Promise.all(apiCalls);
-
+    
     // Extract values
     const aggregatesData = results[0];
     const tickerDetailsData = results[1];
     const insiderTransactionsData = isEtfOrIndex ? null : results[2];
     const technicalIndicatorData = results[isEtfOrIndex ? 2 : 3];
-
+    
     return {
       symbol,
       aggregatesData,
